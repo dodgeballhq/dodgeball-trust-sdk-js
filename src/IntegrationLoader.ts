@@ -1,9 +1,9 @@
-import { ILibConfig, IntegrationName, IntegrationPurpose } from './types';
+import { ILibConfig, IntegrationName, IntegrationPurpose } from "./types";
 
-import FingerprintJSIntegration from './integrations/Fingerprintjs';
-import Integration from './integrations/Integration';
-import SiftIntegration from './integrations/Sift';
-import StripeIdentityIntegration from './integrations/StripeIdentity';
+import FingerprintJSIntegration from "./integrations/Fingerprintjs";
+import Integration from "./integrations/Integration";
+import SiftIntegration from "./integrations/Sift";
+import StripeIdentityIntegration from "./integrations/StripeIdentity";
 
 export default class IntegrationLoader {
   loadedIntegrations: { [key: string]: Integration } = {};
@@ -21,7 +21,7 @@ export default class IntegrationLoader {
       // If so, return the existing integration.
       if (this.loadedIntegrations.hasOwnProperty(libConfig.name)) {
         integration = this.loadedIntegrations[libConfig.name];
-        await integration.reconfigure({...libConfig, requestId});
+        await integration.reconfigure({ ...libConfig, requestId });
         return integration;
       }
 
@@ -34,6 +34,7 @@ export default class IntegrationLoader {
           integrationClass = FingerprintJSIntegration;
           break;
         case IntegrationName.SIFT:
+        case IntegrationName.SIFT_SCORE:
           integrationClass = SiftIntegration;
           break;
         case IntegrationName.STRIPE_IDENTITY:
@@ -69,4 +70,4 @@ export default class IntegrationLoader {
       (integration) => integration.purposes.indexOf(purpose) > -1
     );
   }
-};
+}
