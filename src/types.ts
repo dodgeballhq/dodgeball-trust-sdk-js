@@ -61,6 +61,7 @@ export interface IFingerprint {
 
 export enum IntegrationName {
   SIFT = "SIFT",
+  SIFT_SCORE = "SIFT SCORE",
   FINGERPRINTJS = "FINGERPRINTJS",
   STRIPE_IDENTITY = "STRIPE_IDENTITY",
   TWILIO = "TWILIO",
