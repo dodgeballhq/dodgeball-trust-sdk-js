@@ -13,6 +13,7 @@ export enum VerificationOutcome {
   DENIED = "DENIED",
   PENDING = "PENDING",
   ERROR = "ERROR",
+  BLOCKED = "BLOCKED",
 }
 
 export interface IVerification {
@@ -27,6 +28,7 @@ export interface IVerificationContext {
   onVerified: (verification: IVerification) => Promise<void>;
   onApproved: () => Promise<void>;
   onDenied: (verification: IVerification) => Promise<void>;
+  onBlocked: (verification: IVerification) => Promise<void>;
   onError: (error: string) => Promise<void>;
 }
 
@@ -61,6 +63,7 @@ export enum IntegrationName {
   SIFT = "SIFT",
   FINGERPRINTJS = "FINGERPRINTJS",
   STRIPE_IDENTITY = "STRIPE_IDENTITY",
+  TWILIO = "TWILIO",
 }
 
 export enum IntegrationPurpose {
