@@ -27,7 +27,7 @@ export interface IVerification {
 
 export interface IVerificationContext {
   onVerified: (verification: IVerification) => Promise<void>;
-  onApproved: () => Promise<void>;
+  onApproved: (verification: IVerification) => Promise<void>;
   onDenied: (verification: IVerification) => Promise<void>;
   onBlocked: (verification: IVerification) => Promise<void>;
   onError: (error: string) => Promise<void>;

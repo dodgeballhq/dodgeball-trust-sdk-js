@@ -34,7 +34,7 @@ const DEFAULT_CONFIG: IDodgeballConfig = {
 
 // Export a class that accepts a config object
 export class Dodgeball {
-  publicKey: string = '';
+  publicKey: string = "";
   config: IDodgeballConfig = DEFAULT_CONFIG;
   identifier?: Identifier;
   seenSteps: { [key: string]: IVerificationStep } = {};
@@ -53,14 +53,14 @@ export class Dodgeball {
     this.publicKey = publicKey;
     this.config = Object.assign(DEFAULT_CONFIG, config || {});
 
-    const identifier = this.identifier = new Identifier({
+    const identifier = (this.identifier = new Identifier({
       cookiesEnabled: !this.config.disableCookies,
       apiUrl: this.config.apiUrl as string,
       apiVersion: this.config.apiVersion,
       publicKey,
       clientUrl:
         "https://cdn.jsdelivr.net/npm/clientjs@0.2.1/dist/client.min.js",
-    });
+    }));
 
     // Call to /init endpoint to get list of integrations to run
     // FUTURE: Replace this with dynamically generated files approach to remove first /init request to Dodgeball API
@@ -94,7 +94,7 @@ export class Dodgeball {
       const sourceId = await identifier.identify(identifiers);
       this.sourceId = sourceId;
       this.isIdentified = true;
-      
+
       if (this.onIdentified.length > 0) {
         this.onIdentified.forEach((callback) => {
           callback();
@@ -225,11 +225,11 @@ export class Dodgeball {
     verification: IVerification,
     context: IVerificationContext
   ): void {
-    // Call the appropriate callback function if the verification is complete. 
+    // Call the appropriate callback function if the verification is complete.
     // Otherwise, subscribe to the verification.
     (async () => {
       if (verification == null) {
-        await context.onApproved();
+        await context.onApproved(verification);
       } else {
         switch (verification.outcome) {
           case VerificationOutcome.APPROVED:
@@ -299,7 +299,7 @@ export class Dodgeball {
     );
   }
 
-  public isDenied (verification: IVerification): boolean {
+  public isDenied(verification: IVerification): boolean {
     return (
       verification.status === VerificationStatus.COMPLETE &&
       verification.outcome === VerificationOutcome.DENIED
@@ -315,8 +315,8 @@ export class Dodgeball {
 }
 
 // React hook for use with Dodgeball
-export function useDodgeball (): Dodgeball {
-  if (typeof window !== 'undefined') {
+export function useDodgeball(): Dodgeball {
+  if (typeof window !== "undefined") {
     if (!window.hasOwnProperty("dodgeball")) {
       const dodgeball = new Dodgeball();
       window.dodgeball = dodgeball;
@@ -328,8 +328,8 @@ export function useDodgeball (): Dodgeball {
   return new Dodgeball();
 }
 
-if (typeof window !== 'undefined') {
-  if (!window.hasOwnProperty('dodgeball')) {
+if (typeof window !== "undefined") {
+  if (!window.hasOwnProperty("dodgeball")) {
     window.dodgeball = new Dodgeball();
   }
 }
