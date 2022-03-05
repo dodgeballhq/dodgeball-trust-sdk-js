@@ -20,6 +20,7 @@ export interface IVerification {
   id: string;
   status: VerificationStatus;
   outcome: VerificationOutcome;
+  stepData: IVerificationStepData;
   nextSteps: IVerificationStep[];
   error?: string;
 }
@@ -40,6 +41,10 @@ export interface ILibConfig {
 
 export interface IVerificationStep extends ILibConfig {
   id: string;
+}
+
+export interface IVerificationStepData {
+  customMessage?: string;
 }
 
 export interface IInitConfig {
