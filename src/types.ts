@@ -14,6 +14,7 @@ export enum VerificationOutcome {
   PENDING = "PENDING",
   ERROR = "ERROR",
   BLOCKED = "BLOCKED",
+  WAITING = "APPROVED",
 }
 
 export interface IVerification {
@@ -37,6 +38,7 @@ export interface ILibConfig {
   name: IntegrationName;
   url: string;
   config: any;
+  method?: string;
 }
 
 export interface IVerificationStep extends ILibConfig {
@@ -69,7 +71,7 @@ export enum IntegrationName {
   SIFT_SCORE = "SIFT SCORE",
   FINGERPRINTJS = "FINGERPRINTJS",
   STRIPE_IDENTITY = "STRIPE_IDENTITY",
-  TWILIO = "TWILIO",
+  MFA_TWILIO = "MFA_TWILIO",
 }
 
 export enum IntegrationPurpose {

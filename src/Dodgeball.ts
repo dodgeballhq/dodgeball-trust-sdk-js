@@ -25,6 +25,8 @@ import Identifier from "./Identifier";
 import Integration from "./integrations/Integration";
 import IntegrationLoader from "./IntegrationLoader";
 
+console.log('Dodgeball');
+
 const POLL_INTERVAL_MS = 1000;
 
 const DEFAULT_CONFIG: IDodgeballConfig = {
@@ -47,6 +49,7 @@ export class Dodgeball {
   // Constructor
   constructor() {
     this.integrationLoader = new IntegrationLoader();
+    console.log('I RAN, YAY');
   }
 
   public track(publicKey: string, config?: IDodgeballConfig) {
@@ -150,6 +153,7 @@ export class Dodgeball {
     context: IVerificationContext
   ): Promise<void> {
     // Listen (poll for now, future use websocket) for steps from the verification
+    console.log('subscribe to verification called', verification);
     let response = await queryVerification(
       this.config.apiUrl as string,
       this.publicKey,
@@ -166,10 +170,15 @@ export class Dodgeball {
         this.config.apiVersion,
         verification
       );
+      console.log("verification response", response);
     }
+
+    console.log('After polling loop', response);
 
     // If we get here, either the verification is complete, an error occurred, or we need to display an integration
     switch (response.outcome) {
+      case VerificationOutcome.WAITING:
+        // if requires input, display modal (in case of 2FA)
       case VerificationOutcome.PENDING:
         // There is a new step instructing further action
         await this.handleVerificationStep(
@@ -190,6 +199,8 @@ export class Dodgeball {
   ): Promise<void> {
     // If we get here, the step is for us
     this.seenSteps[step.id] = step;
+
+    console.log("handle verfication step called", step);
 
     // Since the step is for us, we need to display the integration
     if (step.name) {
@@ -228,6 +239,7 @@ export class Dodgeball {
     // Call the appropriate callback function if the verification is complete.
     // Otherwise, subscribe to the verification.
     (async () => {
+      console.log("handle verfication outcome called", verification);
       if (verification == null) {
         await context.onApproved(verification);
       } else {
