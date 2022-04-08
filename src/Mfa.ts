@@ -1,5 +1,3 @@
-
-
 /*
   "verification": { 
     "id": $VERIFICATION_ID,
@@ -23,6 +21,7 @@
     */
 
 import { IVerificationStep } from "./types";
+import { useModal } from "./useModal";
 
 export enum MfaChannelType {
     PHONE = "PHONE",
@@ -46,6 +45,7 @@ export interface IMfaProps{
 
 export default class Mfa{
     public async execute(step: IVerificationStep){
+        console.log('execute MFA step', step);
         switch (step.method) {
             case MfaOperation.AUTHORIZE_MFA_CHANNEL:
                 await this.authorizeMfaChannel(step);
@@ -60,11 +60,12 @@ export default class Mfa{
     }
 
     public async authorizeMfaChannel(step: IVerificationStep){
-        // popup dialog for choosing MFA channel
+        console.log('popup dialog for choosing MFA channel');
+        useModal(true);
     }
 
     public async getToken(step: IVerificationStep){
-        // popup dialog for entering MFA code
+        console.log('popup dialog for entering MFA code');
     }
 
 };

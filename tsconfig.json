@@ -11,6 +11,7 @@
     "checkJs": false,
     "isolatedModules": true,
     "strict": true,
+    "jsx": "react",
     "noFallthroughCasesInSwitch": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
