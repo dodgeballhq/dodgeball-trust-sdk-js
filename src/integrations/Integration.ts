@@ -3,16 +3,11 @@ import {
   IIntegrationProps,
   IntegrationName,
   IntegrationPurpose,
+    IReconfigureIntegrationProps
 } from "../types";
 
 import { loadScript } from "../utilities";
 
-interface IReconfigureIntegrationProps {
-  config: IIntegrationConfig;
-  url: string;
-  purposes?: IntegrationPurpose[];
-  requestId: string;
-}
 
 export default abstract class Integration {
   config: IIntegrationConfig = {};

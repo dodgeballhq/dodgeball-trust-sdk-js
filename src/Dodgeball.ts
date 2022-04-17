@@ -2,24 +2,16 @@ import {
   ApiVersion,
   IDodgeballConfig,
   IIdentifierIntegration,
+  IntegrationPurpose,
   IObserverIntegration,
   IQualifierIntegration,
   IVerification,
   IVerificationContext,
   IVerificationStep,
-  IntegrationPurpose,
   VerificationOutcome,
   VerificationStatus,
 } from "./types";
-import {
-  constructApiHeaders,
-  constructApiUrl,
-  getInitializationConfig,
-  loadScript,
-  makeRequest,
-  queryVerification,
-  sendIdentifyDevice,
-} from "./utilities";
+import {getInitializationConfig, queryVerification,} from "./utilities";
 
 import Identifier from "./Identifier";
 import Integration from "./integrations/Integration";
@@ -49,7 +41,7 @@ export class Dodgeball {
   // Constructor
   constructor() {
     this.integrationLoader = new IntegrationLoader();
-    console.log('I RAN, YAY');
+    console.log('Dodgeball Constructor Called');
   }
 
   public track(publicKey: string, config?: IDodgeballConfig) {
@@ -137,7 +129,9 @@ export class Dodgeball {
   }
 
   private shouldContinuePolling(response: IVerification): boolean {
-    if (response.outcome !== VerificationOutcome.PENDING) {
+    if ((response.outcome !== VerificationOutcome.PENDING) &&
+        (response.outcome !== VerificationOutcome.WAITING) &&
+        (response.outcome !== VerificationOutcome.BLOCKED)){
       return false;
     }
 
@@ -161,17 +155,19 @@ export class Dodgeball {
       verification
     );
 
+    console.log("Got verification:", verification)
     // We need to check for changes to workflow execution
     while (this.shouldContinuePolling(response)) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       response = await queryVerification(
-        this.config.apiUrl as string,
-        this.publicKey,
-        this.config.apiVersion,
-        verification
+          this.config.apiUrl as string,
+          this.publicKey,
+          this.config.apiVersion,
+          verification
       );
-      console.log("verification response", response);
     }
+
+    console.log("Next Steps", verification.nextSteps)
 
     console.log('After polling loop', response);
 
@@ -254,6 +250,8 @@ export class Dodgeball {
             await context.onError(verification.error as string);
             break;
           case VerificationOutcome.PENDING:
+          case VerificationOutcome.WAITING:
+            console.log("PENDING verification received, subscribing again")
             // Otherwise, we'll need to listen for steps from the verification
             this.subscribeToVerification(verification, context);
             break;
@@ -305,6 +303,8 @@ export class Dodgeball {
   }
 
   public isAllowed(verification: IVerification): boolean {
+    console.log("Dodgeball.isAllowed")
+    console.log("verification data:", verification)
     return (
       verification.status === VerificationStatus.COMPLETE &&
       verification.outcome === VerificationOutcome.APPROVED

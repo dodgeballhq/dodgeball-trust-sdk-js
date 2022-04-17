@@ -128,3 +128,22 @@ export const loadScript = async (url: string): Promise<void> => {
     }
   });
 }
+
+// Popup a Modal Dialog and give a reference to it
+export const popupModal = async(
+    formatter: (modal:HTMLElement) => void):Promise<HTMLElement>=> {
+
+  let toReturn: HTMLElement = await document.createElement('div');
+  toReturn.style.cssText = 'position:absolute;width:100%;height:100%;opacity:0.3;z-index:100;background:#000;';
+  document.body.appendChild(toReturn);
+
+  if (formatter) {
+    formatter(toReturn)
+  }
+
+  return toReturn;
+}
+
+export const removeModal = async(modal: HTMLElement)=>{
+  document.body.removeChild(modal)
+}

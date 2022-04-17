@@ -27,6 +27,7 @@ export interface IVerification {
 }
 
 export interface IVerificationContext {
+  onPending?: (verification: IVerification) => Promise<void>;
   onVerified: (verification: IVerification) => Promise<void>;
   onApproved: (verification: IVerification) => Promise<void>;
   onDenied: (verification: IVerification) => Promise<void>;
@@ -71,7 +72,7 @@ export enum IntegrationName {
   SIFT_SCORE = "SIFT SCORE",
   FINGERPRINTJS = "FINGERPRINTJS",
   STRIPE_IDENTITY = "STRIPE_IDENTITY",
-  MFA_TWILIO = "MFA_TWILIO",
+  MFA_TWILIO = "MFA_TWILIO"
 }
 
 export enum IntegrationPurpose {
@@ -82,6 +83,13 @@ export enum IntegrationPurpose {
 
 export interface IIntegrationConfig {
   [key: string]: any;
+}
+
+export interface IReconfigureIntegrationProps {
+  config: IIntegrationConfig;
+  url: string;
+  purposes?: IntegrationPurpose[];
+  requestId: string;
 }
 
 export interface IIntegrationProps {

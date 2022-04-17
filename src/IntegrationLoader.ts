@@ -5,6 +5,7 @@ import Integration from "./integrations/Integration";
 import SiftIntegration from "./integrations/Sift";
 import StripeIdentityIntegration from "./integrations/StripeIdentity";
 import TwilioIntegration from "./integrations/Twilio";
+import MfaIntegration from "./integrations/Mfa";
 
 export default class IntegrationLoader {
   loadedIntegrations: { [key: string]: Integration } = {};
@@ -42,7 +43,7 @@ export default class IntegrationLoader {
           integrationClass = StripeIdentityIntegration;
           break;
         case IntegrationName.MFA_TWILIO:
-          integrationClass = TwilioIntegration;
+          integrationClass = MfaIntegration;
           break;
         default:
           console.warn(`Unknown integration: ${libConfig.name}`);

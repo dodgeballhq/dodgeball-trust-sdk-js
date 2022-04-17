@@ -30,8 +30,8 @@ export enum MfaChannelType {
 }
 
 export enum MfaOperation {
-  AUTHORIZE_MFA_CHANNEL = "AUTHORIZE_MFA_CHANNEL",
-  GET_TOKEN = "GET_TOKEN",
+    AUTHORIZE_MFA_CHANNEL = "AUTHORIZE_MFA_CHANNEL",
+    GET_TOKEN = "GET_TOKEN",
 }
 
 export interface IMfaChannel{
