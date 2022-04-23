@@ -76,6 +76,53 @@ export default class MfaIntegration
         await this.configure();
     }
 
+    private adjoinNewline(parent: HTMLElement){
+        let brLabel = document.createElement('br')
+        brLabel.innerHTML = `<br>`;
+        parent.appendChild(brLabel)
+    }
+
+    private adjoinLabel(parent: HTMLElement, text: string){
+        var label = document.createElement('label')
+        label.innerHTML = text;
+        parent.appendChild(label)
+    }
+
+    private adjoinTextInput(
+        parent: HTMLElement,
+        maxLength: number,
+        initialText: string
+    ):HTMLInputElement{
+        var inputElement = document.createElement("input");
+        inputElement.setAttribute('type', 'text');
+        inputElement.textContent = initialText
+        parent.appendChild(inputElement)
+        return inputElement
+    }
+
+    private createButton(
+        buttonText: string,
+        callback: ()=>Promise<void>
+    ): HTMLButtonElement{
+        let button = document.createElement("button");
+        button.innerHTML = buttonText;
+        button.addEventListener("click", callback)
+        button.style.cssText = 'background-color:#2277cc;color:white'
+
+        return button
+    }
+
+    private adjoinButtons(parent: HTMLElement,
+                   buttons: HTMLButtonElement[]) {
+        let controlsContainer = document.createElement("div");
+        controlsContainer.style.cssText = 'display:flex;gap:20px;padding:10px 0;'
+        buttons.forEach((button)=>{
+            controlsContainer.appendChild(button)
+        })
+
+        parent.appendChild(controlsContainer)
+    }
+
     formatAuthorization(
         parent: HTMLElement,
         rootElement: HTMLElement,
@@ -83,13 +130,19 @@ export default class MfaIntegration
         console.log("About to format authorization", this.config)
         let configs = this.config as IMfaConfig
 
-        var label = document.createElement('label')
-        label.innerHTML = 'Verifications: ';
-        parent.appendChild(label)
+        this.adjoinLabel(
+            parent,
+            'Please select a number or email to receive an authorization code: ');
 
+        // We need the list of radio boxes in order to determine which
+        // ones have been authorized to receive a code.  The first selected
+        // is the only one targeted
         let channelBoxes: HTMLInputElement[] = []
 
+
         configs.mfaChannels.forEach((channel)=>{
+            // For each target channel, add a selection radio box to the display
+            // as well as to the list of channel boxes to check on authorize button click
             let radiobox = document.createElement('input');
             radiobox.type = 'radio';
             radiobox.id = channel.id;
@@ -99,42 +152,27 @@ export default class MfaIntegration
             channelBoxes.push(radiobox)
             parent.appendChild(radiobox)
 
-            var targetLabel = document.createElement('label')
-            label.innerHTML = `${channel.channel} ${channel.target}`;
-            parent.appendChild(targetLabel)
-
-            let brLabel = document.createElement('br')
-            brLabel.innerHTML = `<br>`;
-            parent.appendChild(brLabel)
+            this.adjoinLabel(parent, `${channel.channel} ${channel.target}`)
+            this.adjoinNewline(parent)
         })
 
-        let newline = document.createElement('br');
-        parent.append(newline)
+        this.adjoinNewline(parent)
 
-        let cancelButton = document.createElement("button");
-        cancelButton.innerHTML = "Cancel";
-        cancelButton.addEventListener("click", ()=>{
-            this.onCancel(
+        let cancelButton = this.createButton(
+            "Cancel",
+            ()=>{
+                return this.onCancel(
                 rootElement,
                 responseConsumer);})
 
-        cancelButton.style.cssText = 'background-color:#2277cc;color:white'
-
-        let controlsContainer = document.createElement("div");
-        controlsContainer.style.cssText = 'display:flex;gap:20px;padding:10px 0;'
-
-        controlsContainer.appendChild(cancelButton)
-
-        let authorizeButton = document.createElement("button");
-        authorizeButton.innerHTML = "Authorize";
-        authorizeButton.addEventListener("click", ()=>{this.onAuthorize(
+        let authorizeButton = this.createButton(
+            "Authorize",
+            ()=>{return this.onAuthorize(
             channelBoxes,
             rootElement,
             responseConsumer);})
-        authorizeButton.style.cssText = 'background-color:#2277cc;color:white'
 
-        controlsContainer.appendChild(authorizeButton)
-        parent.appendChild(controlsContainer);
+        this.adjoinButtons(parent, [cancelButton, authorizeButton])
     }
 
     formatGetCode(parent: HTMLElement,
@@ -142,40 +180,67 @@ export default class MfaIntegration
                   responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
         let configs = this.config as IMfaConfig
 
-        var label = document.createElement('label')
-        label.htmlFor = 'Access Code: ';
-        parent.appendChild(label)
+        this.adjoinLabel(
+            parent,
+            'Please enter your authorization code: ');
 
-        let codeInput: HTMLInputElement = document.createElement("input");
-        codeInput.setAttribute('type', 'text');
+        let numChars = configs.numChars ?? 6
+        let initialText = "*".repeat(numChars)
+        let textInput = this.adjoinTextInput(
+            parent,
+            numChars,
+            initialText)
 
-        let newline = document.createElement('br');
-        parent.appendChild(newline)
+        this.adjoinNewline(parent)
 
-        let cancelButton = document.createElement("button");
-        cancelButton.innerHTML = "Cancel";
-        cancelButton.addEventListener("click", ()=>{
-            this.onCancel(rootElement, responseConsumer);})
-        document.body.appendChild(cancelButton);
+        let cancelButton = this.createButton(
+            "Cancel",
+            ()=>{
+                return this.onCancel(
+                    rootElement,
+                    responseConsumer);})
 
-        let authorizeButton = document.createElement("button");
-        authorizeButton.innerHTML = "Authorize";
-        authorizeButton.addEventListener(
-            "click",
-            ()=>{this.onGetCode(codeInput, rootElement, responseConsumer);})
-        document.body.appendChild(authorizeButton);
+        let resendCodeButton = this.createButton(
+            "Authorize",
+            ()=>{return this.onResend(
+                rootElement,
+                responseConsumer);})
+
+        let submitCodeButton = this.createButton(
+            "Authorize",
+            ()=>{return this.onGetCode(
+                textInput,
+                rootElement,
+                responseConsumer);})
+
+        this.adjoinButtons(parent, [cancelButton, submitCodeButton])
     }
 
     async onCancel(modal: HTMLElement,
-                   responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
-        console.log("Cancel")
-        removeModal(modal)
+                   responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void>{
+        let wasSuccessful = false
+        let response = {
+            pluginName: "MFA",
+            methodName: MFAClientOperations.CANCEL,
+        }
+
+        try {
+            await responseConsumer(response)
+            wasSuccessful = true
+        } catch (error) {
+            // TO DO: display this error
+            console.error(error)
+        }
+
+        if (wasSuccessful) {
+            removeModal(modal)
+        }
     }
 
     public async onAuthorize(
         radioBoxes: HTMLInputElement[],
         modal: HTMLElement,
-        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
+        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void>{
         console.log("Authorize")
 
         let selectedId:string | null = null
@@ -200,12 +265,59 @@ export default class MfaIntegration
         }
     }
 
+    public async onResend(
+        modal: HTMLElement,
+        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void> {
+        let wasSuccessful = false
+        let response = {
+            pluginName: "MFA",
+            methodName: MFAClientOperations.RESEND,
+        }
+
+        try {
+            await responseConsumer(response)
+            wasSuccessful = true
+        } catch (error) {
+            // TO DO: display this error
+            console.error(error)
+        }
+
+        if (wasSuccessful) {
+            removeModal(modal)
+        }
+    }
+
     public async onGetCode(
         codeInput: HTMLInputElement,
         modal: HTMLElement,
-        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
-        console.log("Authorize")
-        removeModal(modal)
+        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void>{
+        let inputText = codeInput.textContent
+        let config = this.config as IMfaConfig
+        let numChars = config.numChars ?? 6
+
+        let wasSuccessful = false
+        if(inputText && inputText.length == numChars){
+            let response = {
+                pluginName: "MFA",
+                methodName: MFAClientOperations.TOKEN_RESPONSE,
+                data: {
+                    token: inputText
+                }
+            }
+
+            try {
+                await responseConsumer(response)
+                wasSuccessful = true
+            }
+            catch (error){
+                // TO DO: display this error
+                console.error(error)
+            }
+        }
+
+        if(wasSuccessful) {
+            removeModal(modal)
+        }
     }
 
     public async execute(
