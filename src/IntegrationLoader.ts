@@ -43,6 +43,7 @@ export default class IntegrationLoader {
           integrationClass = StripeIdentityIntegration;
           break;
         case IntegrationName.MFA_TWILIO:
+          console.log("MfaIntegration found")
           integrationClass = MfaIntegration;
           break;
         default:
@@ -55,9 +56,12 @@ export default class IntegrationLoader {
           requestId,
         });
 
+        console.log("about to integration.load")
         await integration.load();
+        console.log("about to configure")
         await integration.configure();
         this.loadedIntegrations[libConfig.name] = integration;
+        console.log("loaded and configured")
       }
 
       return integration;

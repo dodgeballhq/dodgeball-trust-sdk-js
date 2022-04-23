@@ -1,8 +1,14 @@
-import {IVerificationContext, IntegrationName, IntegrationPurpose, IIntegrationConfig} from "../types";
+import {
+    IVerificationContext,
+    IntegrationName,
+    IntegrationPurpose,
+    IIntegrationConfig,
+    IExecutionIntegration, IStepResponse
+} from "../types";
 
 import { IQualifierIntegration } from "../types";
 import Integration from "./Integration"
-import {popupModal, removeModal  } from "../utilities"
+import {loadScript, popupModal, removeModal} from "../utilities"
 
 export interface IMfaChannel{
     channel: string;
@@ -12,9 +18,15 @@ export interface IMfaChannel{
 
 export interface IMfaConfig {
     mfaChannels: IMfaChannel[];
-    operation: string;
     tryNum? : number;
     numChars? : number
+}
+
+export enum MFAClientOperations{
+    CANCEL = 'CANCEL',
+    RESEND = 'RESEND',
+    CLIENT_AUTHORIZATION = 'CLIENT_AUTHORIZATION',
+    TOKEN_RESPONSE = 'TOKEN_RESPONSE'
 }
 
 import { IVerificationStep } from "../types";
@@ -37,7 +49,7 @@ export interface IMfaProps{
 
 export default class MfaIntegration
     extends Integration
-    implements IQualifierIntegration
+    implements IExecutionIntegration
 {
     stripeClient: any = null;
     static modalElement: HTMLElement | null = null
@@ -47,7 +59,7 @@ export default class MfaIntegration
             url: "",
             config: config,
             name: IntegrationName.MFA_TWILIO,
-            purposes: [IntegrationPurpose.QUALIFY],
+            purposes: [IntegrationPurpose.EXECUTE],
             requestId,
         });
     }
@@ -64,12 +76,17 @@ export default class MfaIntegration
         await this.configure();
     }
 
-    formatAuthorization(parent: HTMLElement){
+    formatAuthorization(
+        parent: HTMLElement,
+        rootElement: HTMLElement,
+        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
+        console.log("About to format authorization", this.config)
         let configs = this.config as IMfaConfig
 
         var label = document.createElement('label')
-        label.htmlFor = 'Verifications: ';
+        label.innerHTML = 'Verifications: ';
         parent.appendChild(label)
+
         let channelBoxes: HTMLInputElement[] = []
 
         configs.mfaChannels.forEach((channel)=>{
@@ -77,28 +94,52 @@ export default class MfaIntegration
             radiobox.type = 'radio';
             radiobox.id = channel.id;
             radiobox.value = `${channel.channel} ${channel.target}`;
+            radiobox.innerHTML = `${channel.channel} ${channel.target}`;
 
             channelBoxes.push(radiobox)
             parent.appendChild(radiobox)
+
+            var targetLabel = document.createElement('label')
+            label.innerHTML = `${channel.channel} ${channel.target}`;
+            parent.appendChild(targetLabel)
+
+            let brLabel = document.createElement('br')
+            brLabel.innerHTML = `<br>`;
+            parent.appendChild(brLabel)
         })
 
         let newline = document.createElement('br');
-        parent.appendChild(newline)
+        parent.append(newline)
 
         let cancelButton = document.createElement("button");
         cancelButton.innerHTML = "Cancel";
-        cancelButton.addEventListener("click", ()=>{this.onCancel(parent);})
-        document.body.appendChild(cancelButton);
+        cancelButton.addEventListener("click", ()=>{
+            this.onCancel(
+                rootElement,
+                responseConsumer);})
+
+        cancelButton.style.cssText = 'background-color:#2277cc;color:white'
+
+        let controlsContainer = document.createElement("div");
+        controlsContainer.style.cssText = 'display:flex;gap:20px;padding:10px 0;'
+
+        controlsContainer.appendChild(cancelButton)
 
         let authorizeButton = document.createElement("button");
         authorizeButton.innerHTML = "Authorize";
         authorizeButton.addEventListener("click", ()=>{this.onAuthorize(
             channelBoxes,
-            parent);})
-        document.body.appendChild(authorizeButton);
+            rootElement,
+            responseConsumer);})
+        authorizeButton.style.cssText = 'background-color:#2277cc;color:white'
+
+        controlsContainer.appendChild(authorizeButton)
+        parent.appendChild(controlsContainer);
     }
 
-    formatGetCode(parent: HTMLElement){
+    formatGetCode(parent: HTMLElement,
+                  rootElement: HTMLElement,
+                  responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
         let configs = this.config as IMfaConfig
 
         var label = document.createElement('label')
@@ -113,52 +154,89 @@ export default class MfaIntegration
 
         let cancelButton = document.createElement("button");
         cancelButton.innerHTML = "Cancel";
-        cancelButton.addEventListener("click", ()=>{this.onCancel(parent);})
+        cancelButton.addEventListener("click", ()=>{
+            this.onCancel(rootElement, responseConsumer);})
         document.body.appendChild(cancelButton);
 
         let authorizeButton = document.createElement("button");
         authorizeButton.innerHTML = "Authorize";
         authorizeButton.addEventListener(
             "click",
-            ()=>{this.onGetCode(codeInput, parent);})
+            ()=>{this.onGetCode(codeInput, rootElement, responseConsumer);})
         document.body.appendChild(authorizeButton);
     }
 
-    async onCancel(modal: HTMLElement){
+    async onCancel(modal: HTMLElement,
+                   responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
         console.log("Cancel")
         removeModal(modal)
     }
 
-    public async onAuthorize(radioBoxes: HTMLInputElement[], modal: HTMLElement){
+    public async onAuthorize(
+        radioBoxes: HTMLInputElement[],
+        modal: HTMLElement,
+        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
+        console.log("Authorize")
+
+        let selectedId:string | null = null
+        for(var box of radioBoxes){
+            if(box.checked){
+                selectedId = box.id
+                break
+            }
+        }
+
+        if(selectedId){
+            let stepResponse = {
+                pluginName: "MFA",
+                methodName: MFAClientOperations.CLIENT_AUTHORIZATION,
+                data: {
+                    authorizedChannelId: selectedId
+                }
+            }
+            let response = await responseConsumer(stepResponse)
+            console.log("Callback response:", response)
+            removeModal(modal)
+        }
+    }
+
+    public async onGetCode(
+        codeInput: HTMLInputElement,
+        modal: HTMLElement,
+        responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
         console.log("Authorize")
         removeModal(modal)
     }
 
-    public async onGetCode(codeInput: HTMLInputElement, modal: HTMLElement){
-        console.log("Authorize")
-        removeModal(modal)
-    }
-
-    public async qualify(context: IVerificationContext): Promise<void> {
+    public async execute(
+        step: IVerificationStep,
+        context: IVerificationContext,
+        responseConsumer: (response: IStepResponse)=>Promise<any>): Promise<any> {
+        console.log("Mfa.Execute", step)
         try {
-
-            let typedConfig: IMfaConfig = this.config as IMfaConfig
-            switch(typedConfig.operation) {
+            let typedConfig: IMfaConfig = step.config as IMfaConfig
+            switch(step.method) {
                 case MfaOperation.AUTHORIZE_MFA_CHANNEL:
-                    popupModal((modal) => this.formatAuthorization(modal))
+                    console.log("About to popup")
+                    popupModal((modal, rootElement) =>
+                        this.formatAuthorization(modal, rootElement, responseConsumer))
                     break;
 
                 case MfaOperation.GET_TOKEN:
-                    popupModal((modal) => {
-                        this.formatGetCode(modal)
+                    popupModal((modal, rootElement) => {
+                        this.formatGetCode(modal, rootElement, responseConsumer)
                     })
                     break;
 
                 default:
-                    throw Error(`Unknown operation: ${typedConfig.operation}`)
+                    throw Error(`Unknown operation: ${step.method}`)
             }
         } catch (error) {
             context.onError(error as string);
         }
+    }
+
+    public async load() {
+        console.log("Loading MFA Integration, which is not executable from an external element")
     }
 }

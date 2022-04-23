@@ -1,4 +1,14 @@
-import {ApiVersion, IDodgeballVerifyResponse, IFingerprint, IInitConfig, IVerification, IntegrationName, VerificationOutcome, VerificationStatus} from './types';
+import {
+  ApiVersion,
+  IDodgeballVerifyResponse,
+  IFingerprint,
+  IInitConfig,
+  IVerification,
+  IntegrationName,
+  VerificationOutcome,
+  VerificationStatus,
+  IStepResponse
+} from './types';
 import axios, { Method } from "axios";
 
 interface IRequestParams {
@@ -112,6 +122,33 @@ export const queryVerification = async (url: string, token: string, version: str
   return response;
 }
 
+
+// function to poll api for updates to a verification
+export const setVerificationResponse = async (
+    url: string,
+    token: string,
+    sourceId: string,
+    version: string,
+    verification: IVerification,
+    verificationStepId: string,
+    stepResponse: IStepResponse): Promise<any> => {
+  const headers = constructApiHeaders(token);
+  headers['dodgeball-source-id'] = sourceId
+  headers['dodgeball-plugin-name'] = stepResponse.pluginName
+  headers['dodgeball-method-name'] = stepResponse.methodName
+  const apiUrl = constructApiUrl(url, version);
+
+  const response = await makeRequest({
+    url: `${apiUrl}verification/${verification.id}/${verificationStepId}`,
+    method: "POST",
+    headers,
+    data: stepResponse.data ?? {},
+  });
+
+  return response
+}
+
+
 // Load an external script
 export const loadScript = async (url: string): Promise<void> => {
   return new Promise((resolve, reject) => {
@@ -131,17 +168,32 @@ export const loadScript = async (url: string): Promise<void> => {
 
 // Popup a Modal Dialog and give a reference to it
 export const popupModal = async(
-    formatter: (modal:HTMLElement) => void):Promise<HTMLElement>=> {
+    formatter: (modal:HTMLElement, rootElement:HTMLElement) => void):Promise<HTMLElement | null>=> {
 
-  let toReturn: HTMLElement = await document.createElement('div');
-  toReturn.style.cssText = 'position:absolute;width:100%;height:100%;opacity:0.3;z-index:100;background:#000;';
-  document.body.appendChild(toReturn);
+  console.log("About to popup")
+  try {
+    let toReturn: HTMLElement = await document.createElement('div');
+    toReturn.style.cssText =
+        `display:flex;justify-content:center;align-items:center;position:fixed;
+        top:0;left:0;right:0;bottom:0;z-index:99999;background-color:rgba(0, 0, 0, 0.3);`;
 
-  if (formatter) {
-    formatter(toReturn)
+    let innerModal = await document.createElement('div')
+    innerModal.style.cssText = 'justify-self:center;padding:10px;background-color:white'
+
+    if (formatter) {
+      formatter(innerModal, toReturn)
+    }
+
+    toReturn.appendChild(innerModal)
+    document.body.appendChild(toReturn);
+    console.log("Got through popup without failure")
+
+    return toReturn;
   }
-
-  return toReturn;
+  catch(error){
+    console.error("Could not pop up modal", error)
+    return null
+  }
 }
 
 export const removeModal = async(modal: HTMLElement)=>{

@@ -25,7 +25,9 @@ export default abstract class Integration {
   }
 
   public async load() {
+    console.log("About to load: ", this.name)
     return await loadScript(this.url);
+    console.log("Loaded loadscript")
   }
 
   public abstract configure(): Promise<void>;

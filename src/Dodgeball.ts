@@ -1,17 +1,17 @@
 import {
   ApiVersion,
-  IDodgeballConfig,
+  IDodgeballConfig, IExecutionIntegration,
   IIdentifierIntegration,
   IntegrationPurpose,
   IObserverIntegration,
-  IQualifierIntegration,
+  IQualifierIntegration, IStepResponse,
   IVerification,
   IVerificationContext,
   IVerificationStep,
   VerificationOutcome,
   VerificationStatus,
 } from "./types";
-import {getInitializationConfig, queryVerification,} from "./utilities";
+import {getInitializationConfig, queryVerification, setVerificationResponse} from "./utilities";
 
 import Identifier from "./Identifier";
 import Integration from "./integrations/Integration";
@@ -167,8 +167,6 @@ export class Dodgeball {
       );
     }
 
-    console.log("Next Steps", verification.nextSteps)
-
     console.log('After polling loop', response);
 
     // If we get here, either the verification is complete, an error occurred, or we need to display an integration
@@ -176,11 +174,10 @@ export class Dodgeball {
       case VerificationOutcome.WAITING:
         // if requires input, display modal (in case of 2FA)
       case VerificationOutcome.PENDING:
-        // There is a new step instructing further action
-        await this.handleVerificationStep(
-          this.getNewStep(response) as IVerificationStep,
-          context
-        );
+        await this.handleVerificationOutcome(
+            verification,
+            context
+        )
         this.subscribeToVerification(verification, context);
         break;
       default:
@@ -190,6 +187,7 @@ export class Dodgeball {
   }
 
   private async handleVerificationStep(
+      verification: IVerification,
     step: IVerificationStep,
     context: IVerificationContext
   ): Promise<void> {
@@ -204,26 +202,53 @@ export class Dodgeball {
       // For now I've just used the id of the step
       // (which maps to a workflowStepExecution internally,
       // but this needs to be confirmed.
-      const integration = (await this.integrationLoader.loadIntegration(
-        {
-          ...step,
-        },
-        step.id
-      )) as Integration;
+      console.log("About to load", step)
 
-      this.integrations.push(integration);
+      try {
+        const integration = (await this.integrationLoader.loadIntegration(
+            {
+              ...step,
+            },
+            step.id
+        )) as Integration;
 
-      if (integration.purposes.includes(IntegrationPurpose.OBSERVE)) {
-        (integration as unknown as IObserverIntegration).observe(this.sourceId);
+        this.integrations.push(integration);
+        console.log("Loaded integration", integration)
+
+        if (integration.purposes.includes(IntegrationPurpose.OBSERVE)) {
+          (integration as unknown as IObserverIntegration).observe(this.sourceId);
+        }
+
+        if (integration.purposes.includes(IntegrationPurpose.IDENTIFY)) {
+          (integration as unknown as IIdentifierIntegration).identify();
+          // TODO: Do we need to resubmit the fingerprint?
+        }
+
+        if (integration.purposes.includes(IntegrationPurpose.QUALIFY)) {
+          (integration as unknown as IQualifierIntegration).qualify(context);
+        }
+
+        console.log("Got execute line")
+        if (integration.purposes.includes(IntegrationPurpose.EXECUTE)) {
+          (integration as unknown as IExecutionIntegration).execute(
+              step,
+              context,
+              (response)=>{
+                return setVerificationResponse(
+                    this.config.apiUrl as string,
+                    this.publicKey,
+                    this.sourceId,
+                    this.config.apiVersion,
+                    verification,
+                    step.verificationStepId,
+                    response
+                )
+              });
+          console.log("executed")
+        }
       }
-
-      if (integration.purposes.includes(IntegrationPurpose.IDENTIFY)) {
-        (integration as unknown as IIdentifierIntegration).identify();
-        // TODO: Do we need to resubmit the fingerprint?
-      }
-
-      if (integration.purposes.includes(IntegrationPurpose.QUALIFY)) {
-        (integration as unknown as IQualifierIntegration).qualify(context);
+      catch(error){
+        console.log("error", error)
       }
     }
   }
@@ -237,26 +262,49 @@ export class Dodgeball {
     (async () => {
       console.log("handle verfication outcome called", verification);
       if (verification == null) {
+        console.log("Null case")
         await context.onApproved(verification);
       } else {
         switch (verification.outcome) {
           case VerificationOutcome.APPROVED:
+            console.log("Approved")
             await context.onVerified(verification);
             break;
           case VerificationOutcome.DENIED:
+            console.log("Denied")
             await context.onDenied(verification);
             break;
           case VerificationOutcome.ERROR:
+            console.log("error")
             await context.onError(verification.error as string);
             break;
           case VerificationOutcome.PENDING:
           case VerificationOutcome.WAITING:
+            console.log("Waiting and Pending")
+
+            if(verification.nextSteps){
+              let filteredSteps = this.filterSeenSteps(verification.nextSteps)
+
+              console.log("Initial filtered steps", filteredSteps)
+              while(filteredSteps.length > 0){
+                let firstStep = filteredSteps[0]
+                console.log("About to handle: ", firstStep)
+                await this.handleVerificationStep(verification, firstStep, context)
+                filteredSteps = this.filterSeenSteps(filteredSteps)
+                console.log("Remaining filtered Steps:", filteredSteps)
+              }
+            }
             console.log("PENDING verification received, subscribing again")
             // Otherwise, we'll need to listen for steps from the verification
             this.subscribeToVerification(verification, context);
             break;
+
+          default:
+            console.log("fucked", verification.outcome)
+            break;
         }
       }
+      console.log("ending handle phase")
       return;
     })();
   }
@@ -324,6 +372,7 @@ export class Dodgeball {
       verification.outcome === VerificationOutcome.ERROR
     );
   }
+
 }
 
 // React hook for use with Dodgeball

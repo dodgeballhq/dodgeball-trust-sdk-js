@@ -14,7 +14,7 @@ export enum VerificationOutcome {
   PENDING = "PENDING",
   ERROR = "ERROR",
   BLOCKED = "BLOCKED",
-  WAITING = "APPROVED",
+  WAITING = "WAITING",
 }
 
 export interface IVerification {
@@ -44,10 +44,17 @@ export interface ILibConfig {
 
 export interface IVerificationStep extends ILibConfig {
   id: string;
+  verificationStepId: string;
 }
 
 export interface IVerificationStepData {
   customMessage?: string;
+}
+
+export interface IStepResponse{
+  pluginName: string;
+  methodName: string;
+  data?: any
 }
 
 export interface IInitConfig {
@@ -79,6 +86,7 @@ export enum IntegrationPurpose {
   IDENTIFY = "IDENTIFY",
   OBSERVE = "OBSERVE",
   QUALIFY = "QUALIFY",
+  EXECUTE = "EXECUTE",
 }
 
 export interface IIntegrationConfig {
@@ -107,6 +115,15 @@ export interface IIdentifierIntegration {
 export interface IObserverIntegration {
   observe(sourceId: string): void;
 }
+
+
+
+export interface IExecutionIntegration{
+  execute(step: IVerificationStep,
+          context: IVerificationContext,
+          responseCallback: (stepResponse: IStepResponse)=>Promise<void>): Promise<any>
+}
+
 
 export interface IQualifierIntegration {
   qualify(context: IVerificationContext): Promise<any>;
