@@ -22,13 +22,6 @@ export interface IMfaConfig {
     numChars? : number
 }
 
-export enum MFAClientOperations{
-    CANCEL = 'CANCEL',
-    RESEND = 'RESEND',
-    CLIENT_AUTHORIZATION = 'CLIENT_AUTHORIZATION',
-    TOKEN_RESPONSE = 'TOKEN_RESPONSE'
-}
-
 import { IVerificationStep } from "../types";
 
 export enum MfaChannelType {
@@ -36,9 +29,13 @@ export enum MfaChannelType {
     EMAIL = "EMAIL",
 }
 
-export enum MfaOperation {
-    AUTHORIZE_MFA_CHANNEL = "AUTHORIZE_MFA_CHANNEL",
-    GET_TOKEN = "GET_TOKEN",
+export enum MfaClientOperation{
+    CANCEL = 'CANCEL',
+    RESEND = 'RESEND',
+    AUTHORIZE_MFA_CHANNEL = 'AUTHORIZE_MFA_CHANNEL',
+    CLIENT_AUTHORIZATION = 'CLIENT_AUTHORIZATION',
+    GET_TOKEN='GET_TOKEN',
+    TOKEN_RESPONSE = 'TOKEN_RESPONSE'
 }
 
 export interface IMfaProps{
@@ -221,7 +218,7 @@ export default class MfaIntegration
         let wasSuccessful = false
         let response = {
             pluginName: "MFA",
-            methodName: MFAClientOperations.CANCEL,
+            methodName: MfaClientOperation.CANCEL,
         }
 
         try {
@@ -254,7 +251,7 @@ export default class MfaIntegration
         if(selectedId){
             let stepResponse = {
                 pluginName: "MFA",
-                methodName: MFAClientOperations.CLIENT_AUTHORIZATION,
+                methodName: MfaClientOperation.CLIENT_AUTHORIZATION,
                 data: {
                     authorizedChannelId: selectedId
                 }
@@ -271,7 +268,7 @@ export default class MfaIntegration
         let wasSuccessful = false
         let response = {
             pluginName: "MFA",
-            methodName: MFAClientOperations.RESEND,
+            methodName: MfaClientOperation.RESEND,
         }
 
         try {
@@ -299,7 +296,7 @@ export default class MfaIntegration
         if(inputText && inputText.length == numChars){
             let response = {
                 pluginName: "MFA",
-                methodName: MFAClientOperations.TOKEN_RESPONSE,
+                methodName: MfaClientOperation.TOKEN_RESPONSE,
                 data: {
                     token: inputText
                 }
@@ -328,13 +325,13 @@ export default class MfaIntegration
         try {
             let typedConfig: IMfaConfig = step.config as IMfaConfig
             switch(step.method) {
-                case MfaOperation.AUTHORIZE_MFA_CHANNEL:
+                case MfaClientOperation.AUTHORIZE_MFA_CHANNEL:
                     console.log("About to popup")
                     popupModal((modal, rootElement) =>
                         this.formatAuthorization(modal, rootElement, responseConsumer))
                     break;
 
-                case MfaOperation.GET_TOKEN:
+                case MfaClientOperation.GET_TOKEN:
                     popupModal((modal, rootElement) => {
                         this.formatGetCode(modal, rootElement, responseConsumer)
                     })

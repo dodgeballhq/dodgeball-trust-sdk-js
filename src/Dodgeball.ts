@@ -19,7 +19,7 @@ import IntegrationLoader from "./IntegrationLoader";
 
 console.log('Dodgeball');
 
-const POLL_INTERVAL_MS = 1000;
+const POLL_INTERVAL_MS = 3000 //1000;
 
 const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",
@@ -178,10 +178,14 @@ export class Dodgeball {
             verification,
             context
         )
+
+        console.log("Subscribing to verification", response)
         this.subscribeToVerification(verification, context);
         break;
+
       default:
         this.handleVerificationOutcome(response, context);
+        console.log("Not subscribing to verification with response:", response)
         break;
     }
   }

@@ -29,7 +29,7 @@ export enum MfaChannelType {
     EMAIL = "EMAIL",
 }
 
-export enum MfaOperation {
+export enum MfaClientOperation {
     AUTHORIZE_MFA_CHANNEL = "AUTHORIZE_MFA_CHANNEL",
     GET_TOKEN = "GET_TOKEN",
 }
@@ -47,10 +47,10 @@ export interface IMfaProps{
 export default class Mfa{
     public async execute(step: IVerificationStep){
         switch (step.method) {
-            case MfaOperation.AUTHORIZE_MFA_CHANNEL:
+            case MfaClientOperation.AUTHORIZE_MFA_CHANNEL:
                 await this.authorizeMfaChannel(step);
                 break;
-            case MfaOperation.GET_TOKEN:
+            case MfaClientOperation.GET_TOKEN:
                 await this.getToken(step);
                 break;
 
