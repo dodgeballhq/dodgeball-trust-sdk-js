@@ -1,10 +1,12 @@
 import {
   ApiVersion,
-  IDodgeballConfig, IExecutionIntegration,
+  IDodgeballConfig,
+  IDodgeballVerifyResponse,
+  IExecutionIntegration,
   IIdentifierIntegration,
   IntegrationPurpose,
   IObserverIntegration,
-  IQualifierIntegration, IStepResponse,
+  IQualifierIntegration,
   IVerification,
   IVerificationContext,
   IVerificationStep,
@@ -25,6 +27,15 @@ const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",
   apiVersion: ApiVersion.v1,
 };
+
+type VerificationHandler = (verification: IVerification, context: IVerificationContext)=>Promise<void>
+
+export interface IVerificationInvocationOptions{
+  maxCallDepth?: number;
+  timeout?: number;
+  pollingInterval: number;
+  terminalActionsMap: {[state:string]: VerificationHandler}
+}
 
 // Export a class that accepts a config object
 export class Dodgeball {
@@ -116,84 +127,10 @@ export class Dodgeball {
     });
   }
 
-  private getNewStep(verification: IVerification): IVerificationStep | null {
-    const steps = this.filterSeenSteps(
-      verification.nextSteps || ([] as IVerificationStep[])
-    );
-
-    if (steps.length > 0) {
-      return steps[0];
-    }
-
-    return null;
-  }
-
-  private shouldContinuePolling(response: IVerification): boolean {
-    if ((response.outcome !== VerificationOutcome.PENDING) &&
-        (response.outcome !== VerificationOutcome.WAITING) &&
-        (response.outcome !== VerificationOutcome.BLOCKED)){
-      return false;
-    }
-
-    if (this.getNewStep(response) !== null) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private async subscribeToVerification(
-    verification: IVerification,
-    context: IVerificationContext
-  ): Promise<void> {
-    // Listen (poll for now, future use websocket) for steps from the verification
-    console.log('subscribe to verification called', verification);
-    let response = await queryVerification(
-      this.config.apiUrl as string,
-      this.publicKey,
-      this.config.apiVersion,
-      verification
-    );
-
-    console.log("Got verification:", verification)
-    // We need to check for changes to workflow execution
-    while (this.shouldContinuePolling(response)) {
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      response = await queryVerification(
-          this.config.apiUrl as string,
-          this.publicKey,
-          this.config.apiVersion,
-          verification
-      );
-    }
-
-    console.log('After polling loop', response);
-
-    // If we get here, either the verification is complete, an error occurred, or we need to display an integration
-    switch (response.outcome) {
-      case VerificationOutcome.WAITING:
-        // if requires input, display modal (in case of 2FA)
-      case VerificationOutcome.PENDING:
-        await this.handleVerificationOutcome(
-            verification,
-            context
-        )
-
-        console.log("Subscribing to verification", response)
-        this.subscribeToVerification(verification, context);
-        break;
-
-      default:
-        this.handleVerificationOutcome(response, context);
-        console.log("Not subscribing to verification with response:", response)
-        break;
-    }
-  }
-
   private async handleVerificationStep(
       verification: IVerification,
-    step: IVerificationStep,
-    context: IVerificationContext
+      step: IVerificationStep,
+      context: IVerificationContext
   ): Promise<void> {
     // If we get here, the step is for us
     this.seenSteps[step.id] = step;
@@ -257,59 +194,97 @@ export class Dodgeball {
     }
   }
 
+  private defaultVerificationOptions(){
+    return {
+      pollingInterval: POLL_INTERVAL_MS,
+      terminalActionsMap: this.defaultActionsMap()
+    }
+  }
+
+  private defaultActionsMap(){
+    let toReturn: {[state:string]:VerificationHandler} = {}
+    toReturn[VerificationOutcome.ERROR.valueOf()] =
+      (verification:IVerification, context:IVerificationContext)=>{
+        return context.onError(verification?.error ?? "Unknown Error")}
+
+    toReturn[VerificationOutcome.APPROVED.valueOf()] =
+        (verification:IVerification, context:IVerificationContext)=>{
+          return context.onApproved(verification)}
+
+    toReturn[VerificationOutcome.DENIED.valueOf()] =
+        (verification:IVerification, context:IVerificationContext)=>{
+          return context.onDenied(verification)}
+
+    toReturn[VerificationOutcome.COMPLETE.valueOf()] =
+        (verification:IVerification, context:IVerificationContext)=>{
+          return context.onComplete(verification)}
+
+    return toReturn
+  }
+
+  private verifyTimeDelta(startDate: Date, options?: IVerificationInvocationOptions){
+    let maxDelta = options?.timeout
+    let toReturn = maxDelta?
+        (Date.now() - startDate.valueOf()) < maxDelta:
+        true
+
+    return toReturn
+  }
+
   private handleVerificationOutcome(
     verification: IVerification,
-    context: IVerificationContext
+    context: IVerificationContext,
+    options: IVerificationInvocationOptions
   ): void {
+
     // Call the appropriate callback function if the verification is complete.
     // Otherwise, subscribe to the verification.
     (async () => {
       console.log("handle verfication outcome called", verification);
-      if (verification == null) {
-        console.log("Null case")
-        await context.onApproved(verification);
-      } else {
-        switch (verification.outcome) {
-          case VerificationOutcome.APPROVED:
-            console.log("Approved")
-            await context.onVerified(verification);
-            break;
-          case VerificationOutcome.DENIED:
-            console.log("Denied")
-            await context.onDenied(verification);
-            break;
-          case VerificationOutcome.ERROR:
-            console.log("error")
-            await context.onError(verification.error as string);
-            break;
-          case VerificationOutcome.PENDING:
-          case VerificationOutcome.WAITING:
-            console.log("Waiting and Pending")
 
-            if(verification.nextSteps){
-              let filteredSteps = this.filterSeenSteps(verification.nextSteps)
+      let isTerminal = false
+      let numIterations = 0
+      let startTime = new Date()
 
-              console.log("Initial filtered steps", filteredSteps)
-              while(filteredSteps.length > 0){
-                let firstStep = filteredSteps[0]
-                console.log("About to handle: ", firstStep)
-                await this.handleVerificationStep(verification, firstStep, context)
-                filteredSteps = this.filterSeenSteps(filteredSteps)
-                console.log("Remaining filtered Steps:", filteredSteps)
-              }
-            }
-            console.log("PENDING verification received, subscribing again")
-            // Otherwise, we'll need to listen for steps from the verification
-            this.subscribeToVerification(verification, context);
-            break;
+      while (!isTerminal &&
+      (!options.maxCallDepth || (numIterations < options.maxCallDepth)) &&
+      (numIterations == 0 || this.verifyTimeDelta(startTime, options))) {
 
-          default:
-            console.log("fucked", verification.outcome)
-            break;
+        if (numIterations > 0) {
+          // Sleep between iterations
+          await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
+
+          // To Do: add retry logic
+          let response = await queryVerification(
+              this.config.apiUrl as string,
+              this.publicKey,
+              this.config.apiVersion,
+              verification
+          )
+
+          verification = response.verification
+        }
+
+        let verificationOutcome = verification?.outcome ?? VerificationOutcome.APPROVED
+        let stateName = verificationOutcome.valueOf()
+        isTerminal = !verification || verificationOutcome.valueOf() in options.terminalActionsMap
+        numIterations += 1
+
+        if (isTerminal) {
+          let handler = options.terminalActionsMap[stateName]
+          if (handler) {
+            await handler(verification, context)
+          }
+        } else {
+          let verificationSteps = this.filterSeenSteps(verification.nextSteps ?? [])
+          while (verificationSteps && verificationSteps.length > 0) {
+            await this.handleVerificationStep(verification, verificationSteps[0], context)
+            verificationSteps = this.filterSeenSteps(verificationSteps)
+          }
         }
       }
-      console.log("ending handle phase")
-      return;
+
+      return
     })();
   }
 
@@ -347,7 +322,10 @@ export class Dodgeball {
     verification: IVerification,
     context: IVerificationContext
   ): void {
-    this.handleVerificationOutcome(verification, context);
+    this.handleVerificationOutcome(
+        verification,
+        context,
+        this.defaultVerificationOptions());
   }
 
   public isPending(verification: IVerification): boolean {

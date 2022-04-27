@@ -15,6 +15,11 @@ export enum VerificationOutcome {
   ERROR = "ERROR",
   BLOCKED = "BLOCKED",
   WAITING = "WAITING",
+
+  // Processing is complete, but no decision
+  // was taken.  Clients should only perform
+  // safe actions in this case.
+  COMPLETE = "COMPLETE"
 }
 
 export interface IVerification {
@@ -33,6 +38,7 @@ export interface IVerificationContext {
   onDenied: (verification: IVerification) => Promise<void>;
   onBlocked: (verification: IVerification) => Promise<void>;
   onError: (error: string) => Promise<void>;
+  onComplete: (verification: IVerification)=>Promise<void>
 }
 
 export interface ILibConfig {

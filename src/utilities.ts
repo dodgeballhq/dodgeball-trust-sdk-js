@@ -40,6 +40,7 @@ export const makeRequest = async ({ url, method, headers, data }: IRequestParams
       url,
       headers,
       data,
+      timeout: 0
     });
     return response.data;
   } catch (error) {
@@ -108,7 +109,7 @@ export const sendIdentifyDevice = async ({url, token, version, sourceId, fingerp
 }
 
 // function to poll api for updates to a verification
-export const queryVerification = async (url: string, token: string, version: string, verification: IVerification): Promise<IVerification> => {
+export const queryVerification = async (url: string, token: string, version: string, verification: IVerification): Promise<IDodgeballVerifyResponse> => {
   const headers = constructApiHeaders(token);
   const apiUrl = constructApiUrl(url, version);
 

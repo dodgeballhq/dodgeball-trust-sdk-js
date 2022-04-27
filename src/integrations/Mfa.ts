@@ -92,7 +92,7 @@ export default class MfaIntegration
     ):HTMLInputElement{
         var inputElement = document.createElement("input");
         inputElement.setAttribute('type', 'text');
-        inputElement.textContent = initialText
+        inputElement.value = initialText
         parent.appendChild(inputElement)
         return inputElement
     }
@@ -204,13 +204,13 @@ export default class MfaIntegration
                 responseConsumer);})
 
         let submitCodeButton = this.createButton(
-            "Authorize",
+            "Submit Token",
             ()=>{return this.onGetCode(
                 textInput,
                 rootElement,
                 responseConsumer);})
 
-        this.adjoinButtons(parent, [cancelButton, submitCodeButton])
+        this.adjoinButtons(parent, [cancelButton, resendCodeButton, submitCodeButton])
     }
 
     async onCancel(modal: HTMLElement,
@@ -288,32 +288,38 @@ export default class MfaIntegration
         codeInput: HTMLInputElement,
         modal: HTMLElement,
         responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void>{
-        let inputText = codeInput.textContent
-        let config = this.config as IMfaConfig
-        let numChars = config.numChars ?? 6
+        try {
+            console.log("onGetCode")
+            let inputText = codeInput.value
+            console.log("inputText")
+            let config = this.config as IMfaConfig
+            let numChars = config.numChars ?? 6
 
-        let wasSuccessful = false
-        if(inputText && inputText.length == numChars){
-            let response = {
-                pluginName: "MFA",
-                methodName: MfaClientOperation.TOKEN_RESPONSE,
-                data: {
-                    token: inputText
+            let wasSuccessful = false
+            if (inputText && inputText.length == numChars) {
+                let response = {
+                    pluginName: "MFA",
+                    methodName: MfaClientOperation.TOKEN_RESPONSE,
+                    data: {
+                        token: inputText
+                    }
+                }
+
+                try {
+                    await responseConsumer(response)
+                    wasSuccessful = true
+                } catch (error) {
+                    // TO DO: display this error
+                    console.error(error)
                 }
             }
 
-            try {
-                await responseConsumer(response)
-                wasSuccessful = true
-            }
-            catch (error){
-                // TO DO: display this error
-                console.error(error)
+            if (wasSuccessful) {
+                removeModal(modal)
             }
         }
-
-        if(wasSuccessful) {
-            removeModal(modal)
+        catch(error){
+            console.error("onGetCode error", error)
         }
     }
 
