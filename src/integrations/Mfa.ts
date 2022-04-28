@@ -1,14 +1,14 @@
 import {
-    IVerificationContext,
+    IExecutionIntegration,
     IntegrationName,
     IntegrationPurpose,
-    IIntegrationConfig,
-    IExecutionIntegration, IStepResponse
+    IStepResponse,
+    IVerificationContext,
+    IVerificationStep,
+    VerificationErrorType
 } from "../types";
-
-import { IQualifierIntegration } from "../types";
 import Integration from "./Integration"
-import {loadScript, popupModal, removeModal} from "../utilities"
+import {cleanupNodes, NodeCleanupMethod, popupModal} from "../utilities"
 
 export interface IMfaChannel{
     channel: string;
@@ -21,8 +21,6 @@ export interface IMfaConfig {
     tryNum? : number;
     numChars? : number
 }
-
-import { IVerificationStep } from "../types";
 
 export enum MfaChannelType {
     PHONE = "PHONE",
@@ -166,7 +164,7 @@ export default class MfaIntegration
             "Authorize",
             ()=>{return this.onAuthorize(
             channelBoxes,
-            rootElement,
+            ()=>{return cleanupNodes(rootElement, parent)},
             responseConsumer);})
 
         this.adjoinButtons(parent, [cancelButton, authorizeButton])
@@ -230,13 +228,13 @@ export default class MfaIntegration
         }
 
         if (wasSuccessful) {
-            removeModal(modal)
+            MfaIntegration.removeModal()
         }
     }
 
     public async onAuthorize(
         radioBoxes: HTMLInputElement[],
-        modal: HTMLElement,
+        cleanupMethod: NodeCleanupMethod | null,
         responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void>{
         console.log("Authorize")
 
@@ -258,7 +256,10 @@ export default class MfaIntegration
             }
             let response = await responseConsumer(stepResponse)
             console.log("Callback response:", response)
-            removeModal(modal)
+        }
+
+        if(cleanupMethod){
+            await (cleanupMethod as NodeCleanupMethod)()
         }
     }
 
@@ -280,7 +281,7 @@ export default class MfaIntegration
         }
 
         if (wasSuccessful) {
-            removeModal(modal)
+            MfaIntegration.removeModal()
         }
     }
 
@@ -315,11 +316,34 @@ export default class MfaIntegration
             }
 
             if (wasSuccessful) {
-                removeModal(modal)
+                MfaIntegration.removeModal()
             }
         }
         catch(error){
             console.error("onGetCode error", error)
+        }
+    }
+
+    public static async getModal():Promise<HTMLElement>{
+        // This follows a double-checked locking idiom, required
+        // since the inner await may result in a thread transition
+        if(!MfaIntegration.modalElement){
+            let newElement = await document.createElement('div');
+
+            // Absent an await execution is blocking, so no lock is needed
+            if(!MfaIntegration.modalElement){
+                MfaIntegration.modalElement = newElement
+            }
+        }
+
+        return MfaIntegration.modalElement as HTMLElement
+    }
+
+    public static async removeModal(){
+        if(MfaIntegration.modalElement){
+            let modal = MfaIntegration.modalElement
+            this.modalElement = null;
+            await document.body.removeChild(modal)
         }
     }
 
@@ -333,12 +357,16 @@ export default class MfaIntegration
             switch(step.method) {
                 case MfaClientOperation.AUTHORIZE_MFA_CHANNEL:
                     console.log("About to popup")
-                    popupModal((modal, rootElement) =>
+                    popupModal(
+                        MfaIntegration.getModal,
+                        (modal, rootElement) =>
                         this.formatAuthorization(modal, rootElement, responseConsumer))
                     break;
 
                 case MfaClientOperation.GET_TOKEN:
-                    popupModal((modal, rootElement) => {
+                    popupModal(
+                        MfaIntegration.getModal,
+                        (modal, rootElement) => {
                         this.formatGetCode(modal, rootElement, responseConsumer)
                     })
                     break;
@@ -347,7 +375,10 @@ export default class MfaIntegration
                     throw Error(`Unknown operation: ${step.method}`)
             }
         } catch (error) {
-            context.onError(error as string);
+            context.onError({
+                errorType: VerificationErrorType.SYSTEM,
+                details: error as string
+            });
         }
     }
 

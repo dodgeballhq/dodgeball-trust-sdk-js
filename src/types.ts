@@ -31,14 +31,36 @@ export interface IVerification {
   error?: string;
 }
 
+export enum VerificationErrorType{
+  SYSTEM = 'SYSTEM',
+  TIMEOUT = 'TIMEOUT',
+  COMPLETE_NO_DECISION = 'COMPLETE_NO_DECISION'
+}
+
+export interface IVerificationError{
+  errorType: VerificationErrorType;
+  details?: string
+}
+
+export const systemError = (errorText?:string)=>{
+  return {
+    errorType: VerificationErrorType.SYSTEM,
+    details: errorText
+  }
+}
+
+export interface ITimeoutError extends IVerificationError{
+
+}
+
 export interface IVerificationContext {
   onPending?: (verification: IVerification) => Promise<void>;
   onVerified: (verification: IVerification) => Promise<void>;
   onApproved: (verification: IVerification) => Promise<void>;
-  onDenied: (verification: IVerification) => Promise<void>;
-  onBlocked: (verification: IVerification) => Promise<void>;
-  onError: (error: string) => Promise<void>;
-  onComplete: (verification: IVerification)=>Promise<void>
+  onDenied?: (verification: IVerification) => Promise<void>;
+  onBlocked?: (verification: IVerification) => Promise<void>;
+  onError: (error: IVerificationError) => Promise<void>;
+  onTimeout?: (timeoutError: ITimeoutError)=> Promise<void>;
 }
 
 export interface ILibConfig {

@@ -167,14 +167,19 @@ export const loadScript = async (url: string): Promise<void> => {
   });
 }
 
+export type NodeCleanupMethod = ()=>Promise<void>
+export const cleanupNodes = async (parentNode: HTMLElement, childNode: HTMLElement)=>{
+  await parentNode.removeChild(childNode)
+}
 // Popup a Modal Dialog and give a reference to it
 export const popupModal = async(
-    formatter: (modal:HTMLElement, rootElement:HTMLElement) => void):Promise<HTMLElement | null>=> {
+    modalAccessor: ()=>Promise<HTMLElement>,
+    formatter: (modal:HTMLElement, rootElement:HTMLElement) => void)=> {
 
   console.log("About to popup")
   try {
-    let toReturn: HTMLElement = await document.createElement('div');
-    toReturn.style.cssText =
+    let modal = await modalAccessor()
+    modal.style.cssText =
         `display:flex;justify-content:center;align-items:center;position:fixed;
         top:0;left:0;right:0;bottom:0;z-index:99999;background-color:rgba(0, 0, 0, 0.3);`;
 
@@ -182,21 +187,14 @@ export const popupModal = async(
     innerModal.style.cssText = 'justify-self:center;padding:10px;background-color:white'
 
     if (formatter) {
-      formatter(innerModal, toReturn)
+      formatter(innerModal, modal)
     }
 
-    toReturn.appendChild(innerModal)
-    document.body.appendChild(toReturn);
+    modal.appendChild(innerModal)
+    document.body.appendChild(modal);
     console.log("Got through popup without failure")
-
-    return toReturn;
   }
   catch(error){
     console.error("Could not pop up modal", error)
-    return null
   }
-}
-
-export const removeModal = async(modal: HTMLElement)=>{
-  document.body.removeChild(modal)
 }

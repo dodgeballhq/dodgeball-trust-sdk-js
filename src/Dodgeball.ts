@@ -1,7 +1,6 @@
 import {
   ApiVersion,
   IDodgeballConfig,
-  IDodgeballVerifyResponse,
   IExecutionIntegration,
   IIdentifierIntegration,
   IntegrationPurpose,
@@ -10,6 +9,7 @@ import {
   IVerification,
   IVerificationContext,
   IVerificationStep,
+  VerificationErrorType,
   VerificationOutcome,
   VerificationStatus,
 } from "./types";
@@ -30,11 +30,13 @@ const DEFAULT_CONFIG: IDodgeballConfig = {
 
 type VerificationHandler = (verification: IVerification, context: IVerificationContext)=>Promise<void>
 
-export interface IVerificationInvocationOptions{
-  maxCallDepth?: number;
-  timeout?: number;
+export interface IHandleVerificationOptions{
+  maxDuration: number;
+}
+
+export interface IVerificationInvocationOptions extends IHandleVerificationOptions{
   pollingInterval: number;
-  terminalActionsMap: {[state:string]: VerificationHandler}
+  terminalStates: VerificationOutcome[]
 }
 
 // Export a class that accepts a config object
@@ -196,34 +198,19 @@ export class Dodgeball {
 
   private defaultVerificationOptions(){
     return {
+      maxDuration: 120000,
       pollingInterval: POLL_INTERVAL_MS,
-      terminalActionsMap: this.defaultActionsMap()
+      terminalStates:[
+          VerificationOutcome.COMPLETE,
+          VerificationOutcome.ERROR,
+          VerificationOutcome.APPROVED,
+          VerificationOutcome.DENIED
+      ]
     }
   }
 
-  private defaultActionsMap(){
-    let toReturn: {[state:string]:VerificationHandler} = {}
-    toReturn[VerificationOutcome.ERROR.valueOf()] =
-      (verification:IVerification, context:IVerificationContext)=>{
-        return context.onError(verification?.error ?? "Unknown Error")}
-
-    toReturn[VerificationOutcome.APPROVED.valueOf()] =
-        (verification:IVerification, context:IVerificationContext)=>{
-          return context.onApproved(verification)}
-
-    toReturn[VerificationOutcome.DENIED.valueOf()] =
-        (verification:IVerification, context:IVerificationContext)=>{
-          return context.onDenied(verification)}
-
-    toReturn[VerificationOutcome.COMPLETE.valueOf()] =
-        (verification:IVerification, context:IVerificationContext)=>{
-          return context.onComplete(verification)}
-
-    return toReturn
-  }
-
   private verifyTimeDelta(startDate: Date, options?: IVerificationInvocationOptions){
-    let maxDelta = options?.timeout
+    let maxDelta = options?.maxDuration
     let toReturn = maxDelta?
         (Date.now() - startDate.valueOf()) < maxDelta:
         true
@@ -247,7 +234,6 @@ export class Dodgeball {
       let startTime = new Date()
 
       while (!isTerminal &&
-      (!options.maxCallDepth || (numIterations < options.maxCallDepth)) &&
       (numIterations == 0 || this.verifyTimeDelta(startTime, options))) {
 
         if (numIterations > 0) {
@@ -267,20 +253,69 @@ export class Dodgeball {
 
         let verificationOutcome = verification?.outcome ?? VerificationOutcome.APPROVED
         let stateName = verificationOutcome.valueOf()
-        isTerminal = !verification || verificationOutcome.valueOf() in options.terminalActionsMap
+        isTerminal = (!verification ||
+            verificationOutcome === VerificationOutcome.COMPLETE ||
+            verificationOutcome === VerificationOutcome.ERROR ||
+            verificationOutcome === VerificationOutcome.APPROVED ||
+            verificationOutcome === VerificationOutcome.DENIED)
         numIterations += 1
 
-        if (isTerminal) {
-          let handler = options.terminalActionsMap[stateName]
-          if (handler) {
-            await handler(verification, context)
-          }
-        } else {
+        if(!isTerminal){
           let verificationSteps = this.filterSeenSteps(verification.nextSteps ?? [])
           while (verificationSteps && verificationSteps.length > 0) {
             await this.handleVerificationStep(verification, verificationSteps[0], context)
             verificationSteps = this.filterSeenSteps(verificationSteps)
           }
+        }
+
+        switch(verificationOutcome){
+          case VerificationOutcome.COMPLETE:
+              context.onError({
+                errorType: VerificationErrorType.COMPLETE_NO_DECISION
+              })
+            break;
+
+          case VerificationOutcome.ERROR:
+            context.onError({
+              errorType: VerificationErrorType.SYSTEM,
+              details: verification.error
+            })
+
+                break;
+
+          case VerificationOutcome.APPROVED:
+            // To match the existing logic.  Will be simplified
+                if(numIterations === 1){
+                  await context.onApproved(verification)
+                }
+                else{
+                  await context.onVerified(verification)
+                }
+            break;
+
+          case VerificationOutcome.DENIED:
+            if(context.onDenied) {
+              await context.onDenied(verification)
+            }
+            break;
+
+          case VerificationOutcome.PENDING:
+          case VerificationOutcome.WAITING:
+            if(context.onPending){
+              await context.onPending(verification)
+            }
+            break;
+
+
+          case VerificationOutcome.BLOCKED:
+            if(context.onBlocked){
+              await context.onBlocked(verification)
+            }
+            break;
+
+          default:
+            console.log(`Unknown Verification Outcome: ${verificationOutcome}`)
+                break;
         }
       }
 
@@ -320,16 +355,20 @@ export class Dodgeball {
   // Takes a verification and calls the correct callback based on the outcome
   public handleVerification(
     verification: IVerification,
-    context: IVerificationContext
+    context: IVerificationContext,
+    options?: IHandleVerificationOptions
   ): void {
+    let fullOptions = this.defaultVerificationOptions()
+    fullOptions.maxDuration = options? options.maxDuration: fullOptions.maxDuration
+
     this.handleVerificationOutcome(
         verification,
         context,
-        this.defaultVerificationOptions());
+        fullOptions)
   }
 
-  public isPending(verification: IVerification): boolean {
-    return verification.status === VerificationStatus.PENDING;
+  public isRunning(verification: IVerification){
+    return (verification.status === VerificationStatus.PENDING)
   }
 
   public isAllowed(verification: IVerification): boolean {

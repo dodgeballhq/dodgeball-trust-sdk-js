@@ -1,4 +1,4 @@
-import { IVerificationContext, IntegrationName, IntegrationPurpose } from "../types";
+import {IVerificationContext, IntegrationName, IntegrationPurpose, systemError} from "../types";
 
 import { IQualifierIntegration } from "../types";
 import Integration from "./Integration";
@@ -54,7 +54,7 @@ export default class StripeIdentityIntegration
       }
       return;
     } catch (error) {
-      context.onError(error as string);
+      context.onError(systemError(error as string));
     }
   }
 }
