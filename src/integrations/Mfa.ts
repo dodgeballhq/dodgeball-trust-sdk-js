@@ -170,9 +170,31 @@ export default class MfaIntegration
         this.adjoinButtons(parent, [cancelButton, authorizeButton])
     }
 
+    formatResendCode(parent: HTMLElement,
+                  rootElement: HTMLElement,
+                  responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
+        let configs = this.config as IMfaConfig
+
+        let cancelButton = this.createButton(
+            "Cancel",
+            ()=>{
+                return this.onCancel(
+                    rootElement,
+                    responseConsumer);})
+
+        let resendCodeButton = this.createButton(
+            "Resend Code",
+            ()=>{return this.onResend(
+                rootElement,
+                responseConsumer);})
+
+        this.adjoinButtons(parent, [cancelButton, resendCodeButton])
+    }
+
     formatGetCode(parent: HTMLElement,
                   rootElement: HTMLElement,
                   responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
+
         let configs = this.config as IMfaConfig
 
         this.adjoinLabel(
@@ -258,9 +280,11 @@ export default class MfaIntegration
             console.log("Callback response:", response)
         }
 
-        if(cleanupMethod){
-            await (cleanupMethod as NodeCleanupMethod)()
-        }
+        MfaIntegration.removeModal()
+        popupModal(
+            MfaIntegration.getModal,
+            (modal, rootElement) =>
+                this.formatResendCode(modal, rootElement, responseConsumer))
     }
 
     public async onResend(
@@ -340,9 +364,10 @@ export default class MfaIntegration
     }
 
     public static async removeModal(){
+        console.log("RemoveModal called")
         if(MfaIntegration.modalElement){
             let modal = MfaIntegration.modalElement
-            this.modalElement = null;
+            MfaIntegration.modalElement = null;
             await document.body.removeChild(modal)
         }
     }
@@ -364,6 +389,8 @@ export default class MfaIntegration
                     break;
 
                 case MfaClientOperation.GET_TOKEN:
+                    MfaIntegration.removeModal()
+
                     popupModal(
                         MfaIntegration.getModal,
                         (modal, rootElement) => {
