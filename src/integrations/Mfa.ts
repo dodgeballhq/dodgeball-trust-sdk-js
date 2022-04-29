@@ -7,6 +7,7 @@ import {
     IVerificationStep,
     VerificationErrorType
 } from "../types";
+import { Logger } from "../logger"
 import Integration from "./Integration"
 import {cleanupNodes, NodeCleanupMethod, popupModal} from "../utilities"
 
@@ -122,7 +123,11 @@ export default class MfaIntegration
         parent: HTMLElement,
         rootElement: HTMLElement,
         responseConsumer: (stepResponse:IStepResponse)=>Promise<any>){
-        console.log("About to format authorization", this.config)
+        Logger.trace(
+            "About to format authorization",
+            {config: this.config}
+        ).log()
+
         let configs = this.config as IMfaConfig
 
         this.adjoinLabel(
@@ -245,8 +250,7 @@ export default class MfaIntegration
             await responseConsumer(response)
             wasSuccessful = true
         } catch (error) {
-            // TO DO: display this error
-            console.error(error)
+            Logger.error("Error in cancel", error).log()
         }
 
         if (wasSuccessful) {
@@ -258,7 +262,7 @@ export default class MfaIntegration
         radioBoxes: HTMLInputElement[],
         cleanupMethod: NodeCleanupMethod | null,
         responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void>{
-        console.log("Authorize")
+        Logger.trace("Authorize").log()
 
         let selectedId:string | null = null
         for(var box of radioBoxes){
@@ -277,7 +281,7 @@ export default class MfaIntegration
                 }
             }
             let response = await responseConsumer(stepResponse)
-            console.log("Callback response:", response)
+            Logger.trace("Callback response", {response: response}).log()
         }
 
         MfaIntegration.removeModal()
@@ -301,7 +305,7 @@ export default class MfaIntegration
             wasSuccessful = true
         } catch (error) {
             // TO DO: display this error
-            console.error(error)
+            Logger.error("Response Consumer", error).log()
         }
 
         if (wasSuccessful) {
@@ -314,9 +318,9 @@ export default class MfaIntegration
         modal: HTMLElement,
         responseConsumer: (stepResponse:IStepResponse)=>Promise<any>):Promise<void>{
         try {
-            console.log("onGetCode")
+            Logger.trace("onGetCode").log()
             let inputText = codeInput.value
-            console.log("inputText")
+
             let config = this.config as IMfaConfig
             let numChars = config.numChars ?? 6
 
@@ -335,7 +339,7 @@ export default class MfaIntegration
                     wasSuccessful = true
                 } catch (error) {
                     // TO DO: display this error
-                    console.error(error)
+                    Logger.error("On Get Code", error).log()
                 }
             }
 
@@ -344,7 +348,7 @@ export default class MfaIntegration
             }
         }
         catch(error){
-            console.error("onGetCode error", error)
+            Logger.error("onGetCode error", error).log()
         }
     }
 
@@ -364,7 +368,7 @@ export default class MfaIntegration
     }
 
     public static async removeModal(){
-        console.log("RemoveModal called")
+        Logger.trace("RemoveModal called").log()
         if(MfaIntegration.modalElement){
             let modal = MfaIntegration.modalElement
             MfaIntegration.modalElement = null;
@@ -376,12 +380,12 @@ export default class MfaIntegration
         step: IVerificationStep,
         context: IVerificationContext,
         responseConsumer: (response: IStepResponse)=>Promise<any>): Promise<any> {
-        console.log("Mfa.Execute", step)
+        Logger.trace("Mfa.Execute", {step: step}).log()
         try {
             let typedConfig: IMfaConfig = step.config as IMfaConfig
             switch(step.method) {
                 case MfaClientOperation.AUTHORIZE_MFA_CHANNEL:
-                    console.log("About to popup")
+
                     popupModal(
                         MfaIntegration.getModal,
                         (modal, rootElement) =>
@@ -410,6 +414,8 @@ export default class MfaIntegration
     }
 
     public async load() {
-        console.log("Loading MFA Integration, which is not executable from an external element")
+        Logger.error(
+            "Loading MFA Integration, which is not executable from an external element"
+        ).log()
     }
 }

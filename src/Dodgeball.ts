@@ -13,6 +13,9 @@ import {
   VerificationOutcome,
   VerificationStatus,
 } from "./types";
+
+import {Logger} from './logger'
+
 import {getInitializationConfig, queryVerification, setVerificationResponse} from "./utilities";
 
 import Identifier from "./Identifier";
@@ -54,7 +57,7 @@ export class Dodgeball {
   // Constructor
   constructor() {
     this.integrationLoader = new IntegrationLoader();
-    console.log('Dodgeball Constructor Called');
+    Logger.info('Dodgeball Constructor Called').log()
   }
 
   public track(publicKey: string, config?: IDodgeballConfig) {
@@ -137,15 +140,11 @@ export class Dodgeball {
     // If we get here, the step is for us
     this.seenSteps[step.id] = step;
 
-    console.log("handle verfication step called", step);
+    Logger.trace("handle verfication step called",{"step": step}).log();
 
     // Since the step is for us, we need to display the integration
     if (step.name) {
-      // TODO: Where does the requestId come from?
-      // For now I've just used the id of the step
-      // (which maps to a workflowStepExecution internally,
-      // but this needs to be confirmed.
-      console.log("About to load", step)
+      Logger.trace("About to load", {step:step}).log()
 
       try {
         const integration = (await this.integrationLoader.loadIntegration(
@@ -156,7 +155,7 @@ export class Dodgeball {
         )) as Integration;
 
         this.integrations.push(integration);
-        console.log("Loaded integration", integration)
+        Logger.info('Loaded integration',{integration: integration.name})
 
         if (integration.purposes.includes(IntegrationPurpose.OBSERVE)) {
           (integration as unknown as IObserverIntegration).observe(this.sourceId);
@@ -171,7 +170,6 @@ export class Dodgeball {
           (integration as unknown as IQualifierIntegration).qualify(context);
         }
 
-        console.log("Got execute line")
         if (integration.purposes.includes(IntegrationPurpose.EXECUTE)) {
           (integration as unknown as IExecutionIntegration).execute(
               step,
@@ -187,11 +185,13 @@ export class Dodgeball {
                     response
                 )
               });
-          console.log("executed")
         }
       }
       catch(error){
-        console.log("error", error)
+        Logger.error(
+            "Could not process step",
+            error).setParameters(
+            {step: step}).log()
       }
     }
   }
@@ -227,7 +227,8 @@ export class Dodgeball {
     // Call the appropriate callback function if the verification is complete.
     // Otherwise, subscribe to the verification.
     (async () => {
-      console.log("handle verfication outcome called", verification);
+      Logger.trace("handle verfication outcome called",
+          {verification: verification}).log();
 
       let isTerminal = false
       let numIterations = 0
@@ -314,7 +315,7 @@ export class Dodgeball {
             break;
 
           default:
-            console.log(`Unknown Verification Outcome: ${verificationOutcome}`)
+            Logger.info(`Unknown Verification Outcome: ${verificationOutcome}`)
                 break;
         }
       }
@@ -372,8 +373,6 @@ export class Dodgeball {
   }
 
   public isAllowed(verification: IVerification): boolean {
-    console.log("Dodgeball.isAllowed")
-    console.log("verification data:", verification)
     return (
       verification.status === VerificationStatus.COMPLETE &&
       verification.outcome === VerificationOutcome.APPROVED
