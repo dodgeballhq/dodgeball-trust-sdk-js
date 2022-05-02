@@ -4,6 +4,8 @@ import FingerprintJSIntegration from "./integrations/Fingerprintjs";
 import Integration from "./integrations/Integration";
 import SiftIntegration from "./integrations/Sift";
 import StripeIdentityIntegration from "./integrations/StripeIdentity";
+import TwilioIntegration from "./integrations/Twilio";
+import MfaIntegration from "./integrations/Mfa";
 
 export default class IntegrationLoader {
   loadedIntegrations: { [key: string]: Integration } = {};
@@ -40,6 +42,10 @@ export default class IntegrationLoader {
         case IntegrationName.STRIPE_IDENTITY:
           integrationClass = StripeIdentityIntegration;
           break;
+        case IntegrationName.MFA:
+          console.log("MfaIntegration found")
+          integrationClass = MfaIntegration;
+          break;
         default:
           console.warn(`Unknown integration: ${libConfig.name}`);
       }
@@ -50,9 +56,12 @@ export default class IntegrationLoader {
           requestId,
         });
 
+        console.log("about to integration.load")
         await integration.load();
+        console.log("about to configure")
         await integration.configure();
         this.loadedIntegrations[libConfig.name] = integration;
+        console.log("loaded and configured")
       }
 
       return integration;

@@ -1,4 +1,14 @@
-import {ApiVersion, IDodgeballVerifyResponse, IFingerprint, IInitConfig, IVerification, IntegrationName, VerificationOutcome, VerificationStatus} from './types';
+import {
+  ApiVersion,
+  IDodgeballVerifyResponse,
+  IFingerprint,
+  IInitConfig,
+  IVerification,
+  IntegrationName,
+  VerificationOutcome,
+  VerificationStatus,
+  IStepResponse
+} from './types';
 import axios, { Method } from "axios";
 
 interface IRequestParams {
@@ -30,6 +40,7 @@ export const makeRequest = async ({ url, method, headers, data }: IRequestParams
       url,
       headers,
       data,
+      timeout: 0
     });
     return response.data;
   } catch (error) {
@@ -98,7 +109,7 @@ export const sendIdentifyDevice = async ({url, token, version, sourceId, fingerp
 }
 
 // function to poll api for updates to a verification
-export const queryVerification = async (url: string, token: string, version: string, verification: IVerification): Promise<IVerification> => {
+export const queryVerification = async (url: string, token: string, version: string, verification: IVerification): Promise<IDodgeballVerifyResponse> => {
   const headers = constructApiHeaders(token);
   const apiUrl = constructApiUrl(url, version);
 
@@ -111,6 +122,33 @@ export const queryVerification = async (url: string, token: string, version: str
 
   return response;
 }
+
+
+// function to poll api for updates to a verification
+export const setVerificationResponse = async (
+    url: string,
+    token: string,
+    sourceId: string,
+    version: string,
+    verification: IVerification,
+    verificationStepId: string,
+    stepResponse: IStepResponse): Promise<any> => {
+  const headers = constructApiHeaders(token);
+  headers['dodgeball-source-id'] = sourceId
+  headers['dodgeball-plugin-name'] = stepResponse.pluginName
+  headers['dodgeball-method-name'] = stepResponse.methodName
+  const apiUrl = constructApiUrl(url, version);
+
+  const response = await makeRequest({
+    url: `${apiUrl}verification/${verification.id}/${verificationStepId}`,
+    method: "POST",
+    headers,
+    data: stepResponse.data ?? {},
+  });
+
+  return response
+}
+
 
 // Load an external script
 export const loadScript = async (url: string): Promise<void> => {
@@ -127,4 +165,36 @@ export const loadScript = async (url: string): Promise<void> => {
       reject(error);
     }
   });
+}
+
+export type NodeCleanupMethod = ()=>Promise<void>
+export const cleanupNodes = async (parentNode: HTMLElement, childNode: HTMLElement)=>{
+  await parentNode.removeChild(childNode)
+}
+// Popup a Modal Dialog and give a reference to it
+export const popupModal = async(
+    modalAccessor: ()=>Promise<HTMLElement>,
+    formatter: (modal:HTMLElement, rootElement:HTMLElement) => void)=> {
+
+  console.log("About to popup")
+  try {
+    let modal = await modalAccessor()
+    modal.style.cssText =
+        `display:flex;justify-content:center;align-items:center;position:fixed;
+        top:0;left:0;right:0;bottom:0;z-index:99999;background-color:rgba(0, 0, 0, 0.3);`;
+
+    let innerModal = await document.createElement('div')
+    innerModal.style.cssText = 'justify-self:center;padding:10px;background-color:white'
+
+    if (formatter) {
+      formatter(innerModal, modal)
+    }
+
+    modal.appendChild(innerModal)
+    document.body.appendChild(modal);
+    console.log("Got through popup without failure")
+  }
+  catch(error){
+    console.error("Could not pop up modal", error)
+  }
 }

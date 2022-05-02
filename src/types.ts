@@ -14,6 +14,12 @@ export enum VerificationOutcome {
   PENDING = "PENDING",
   ERROR = "ERROR",
   BLOCKED = "BLOCKED",
+  WAITING = "WAITING",
+
+  // Processing is complete, but no decision
+  // was taken.  Clients should only perform
+  // safe actions in this case.
+  COMPLETE = "COMPLETE"
 }
 
 export interface IVerification {
@@ -25,26 +31,58 @@ export interface IVerification {
   error?: string;
 }
 
+export enum VerificationErrorType{
+  SYSTEM = 'SYSTEM',
+  TIMEOUT = 'TIMEOUT',
+  COMPLETE_NO_DECISION = 'COMPLETE_NO_DECISION'
+}
+
+export interface IVerificationError{
+  errorType: VerificationErrorType;
+  details?: string
+}
+
+export const systemError = (errorText?:string)=>{
+  return {
+    errorType: VerificationErrorType.SYSTEM,
+    details: errorText
+  }
+}
+
+export interface ITimeoutError extends IVerificationError{
+
+}
+
 export interface IVerificationContext {
+  onPending?: (verification: IVerification) => Promise<void>;
   onVerified: (verification: IVerification) => Promise<void>;
   onApproved: (verification: IVerification) => Promise<void>;
-  onDenied: (verification: IVerification) => Promise<void>;
-  onBlocked: (verification: IVerification) => Promise<void>;
-  onError: (error: string) => Promise<void>;
+  onDenied?: (verification: IVerification) => Promise<void>;
+  onBlocked?: (verification: IVerification) => Promise<void>;
+  onError: (error: IVerificationError) => Promise<void>;
+  onTimeout?: (timeoutError: ITimeoutError)=> Promise<void>;
 }
 
 export interface ILibConfig {
   name: IntegrationName;
   url: string;
   config: any;
+  method?: string;
 }
 
 export interface IVerificationStep extends ILibConfig {
   id: string;
+  verificationStepId: string;
 }
 
 export interface IVerificationStepData {
   customMessage?: string;
+}
+
+export interface IStepResponse{
+  pluginName: string;
+  methodName: string;
+  data?: any
 }
 
 export interface IInitConfig {
@@ -69,17 +107,25 @@ export enum IntegrationName {
   SIFT_SCORE = "SIFT SCORE",
   FINGERPRINTJS = "FINGERPRINTJS",
   STRIPE_IDENTITY = "STRIPE_IDENTITY",
-  TWILIO = "TWILIO",
+  MFA = "MFA"
 }
 
 export enum IntegrationPurpose {
   IDENTIFY = "IDENTIFY",
   OBSERVE = "OBSERVE",
   QUALIFY = "QUALIFY",
+  EXECUTE = "EXECUTE",
 }
 
 export interface IIntegrationConfig {
   [key: string]: any;
+}
+
+export interface IReconfigureIntegrationProps {
+  config: IIntegrationConfig;
+  url: string;
+  purposes?: IntegrationPurpose[];
+  requestId: string;
 }
 
 export interface IIntegrationProps {
@@ -97,6 +143,15 @@ export interface IIdentifierIntegration {
 export interface IObserverIntegration {
   observe(sourceId: string): void;
 }
+
+
+
+export interface IExecutionIntegration{
+  execute(step: IVerificationStep,
+          context: IVerificationContext,
+          responseCallback: (stepResponse: IStepResponse)=>Promise<void>): Promise<any>
+}
+
 
 export interface IQualifierIntegration {
   qualify(context: IVerificationContext): Promise<any>;
