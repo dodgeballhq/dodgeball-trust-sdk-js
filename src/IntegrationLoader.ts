@@ -42,7 +42,7 @@ export default class IntegrationLoader {
         case IntegrationName.STRIPE_IDENTITY:
           integrationClass = StripeIdentityIntegration;
           break;
-        case IntegrationName.MFA_TWILIO:
+        case IntegrationName.MFA:
           console.log("MfaIntegration found")
           integrationClass = MfaIntegration;
           break;

@@ -54,7 +54,7 @@ export default class MfaIntegration
         super({
             url: "",
             config: config,
-            name: IntegrationName.MFA_TWILIO,
+            name: IntegrationName.MFA,
             purposes: [IntegrationPurpose.EXECUTE],
             requestId,
         });

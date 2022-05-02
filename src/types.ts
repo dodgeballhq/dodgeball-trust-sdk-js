@@ -107,7 +107,7 @@ export enum IntegrationName {
   SIFT_SCORE = "SIFT SCORE",
   FINGERPRINTJS = "FINGERPRINTJS",
   STRIPE_IDENTITY = "STRIPE_IDENTITY",
-  MFA_TWILIO = "MFA_TWILIO"
+  MFA = "MFA"
 }
 
 export enum IntegrationPurpose {

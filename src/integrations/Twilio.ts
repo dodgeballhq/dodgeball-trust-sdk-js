@@ -21,7 +21,7 @@ export default class TwilioIntegration extends Integration implements IQualifier
     super({
       url,
       config,
-      name: IntegrationName.MFA_TWILIO,
+      name: IntegrationName.MFA,
       purposes: [IntegrationPurpose.QUALIFY],
       requestId
     });
