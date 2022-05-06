@@ -14,32 +14,40 @@ import {
   VerificationStatus,
 } from "./types";
 
-import {Logger} from './logger'
+import { Logger } from "./logger";
 
-import {getInitializationConfig, queryVerification, setVerificationResponse} from "./utilities";
+import {
+  getInitializationConfig,
+  queryVerification,
+  setVerificationResponse,
+} from "./utilities";
 
 import Identifier from "./Identifier";
 import Integration from "./integrations/Integration";
 import IntegrationLoader from "./IntegrationLoader";
 
-console.log('Dodgeball');
+console.log("Dodgeball");
 
-const POLL_INTERVAL_MS = 3000 //1000;
+const POLL_INTERVAL_MS = 3000; //1000;
 
 const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",
   apiVersion: ApiVersion.v1,
 };
 
-type VerificationHandler = (verification: IVerification, context: IVerificationContext)=>Promise<void>
+type VerificationHandler = (
+  verification: IVerification,
+  context: IVerificationContext
+) => Promise<void>;
 
-export interface IHandleVerificationOptions{
+export interface IHandleVerificationOptions {
   maxDuration: number;
 }
 
-export interface IVerificationInvocationOptions extends IHandleVerificationOptions{
+export interface IVerificationInvocationOptions
+  extends IHandleVerificationOptions {
   pollingInterval: number;
-  terminalStates: VerificationOutcome[]
+  terminalStates: VerificationOutcome[];
 }
 
 // Export a class that accepts a config object
@@ -57,7 +65,7 @@ export class Dodgeball {
   // Constructor
   constructor() {
     this.integrationLoader = new IntegrationLoader();
-    Logger.info('Dodgeball Constructor Called').log()
+    Logger.info("Dodgeball Constructor Called").log();
   }
 
   public track(publicKey: string, config?: IDodgeballConfig) {
@@ -133,32 +141,39 @@ export class Dodgeball {
   }
 
   private async handleVerificationStep(
-      verification: IVerification,
-      step: IVerificationStep,
-      context: IVerificationContext
+    verification: IVerification,
+    step: IVerificationStep,
+    context: IVerificationContext
   ): Promise<void> {
     // If we get here, the step is for us
     this.seenSteps[step.id] = step;
 
-    Logger.trace("handle verfication step called",{"step": step}).log();
-
     // Since the step is for us, we need to display the integration
     if (step.name) {
-      Logger.trace("About to load", {step:step}).log()
+      Logger.trace("Handle Verification Step - About to load:", {
+        step: step,
+      }).log();
 
       try {
         const integration = (await this.integrationLoader.loadIntegration(
-            {
-              ...step,
-            },
-            step.id
+          {
+            ...step,
+          },
+          step.id
         )) as Integration;
 
-        this.integrations.push(integration);
-        Logger.info('Loaded integration',{integration: integration.name})
+        if (this.integrations.indexOf(integration) < 0) {
+          this.integrations.push(integration);
+        }
+
+        Logger.info("Handle Verification Step - Loaded integration", {
+          integration: integration.name,
+        });
 
         if (integration.purposes.includes(IntegrationPurpose.OBSERVE)) {
-          (integration as unknown as IObserverIntegration).observe(this.sourceId);
+          (integration as unknown as IObserverIntegration).observe(
+            this.sourceId
+          );
         }
 
         if (integration.purposes.includes(IntegrationPurpose.IDENTIFY)) {
@@ -172,50 +187,55 @@ export class Dodgeball {
 
         if (integration.purposes.includes(IntegrationPurpose.EXECUTE)) {
           (integration as unknown as IExecutionIntegration).execute(
-              step,
-              context,
-              (response)=>{
-                return setVerificationResponse(
-                    this.config.apiUrl as string,
-                    this.publicKey,
-                    this.sourceId,
-                    this.config.apiVersion,
-                    verification,
-                    step.verificationStepId,
-                    response
-                )
-              });
+            step,
+            context,
+            (response) => {
+              return setVerificationResponse(
+                this.config.apiUrl as string,
+                this.publicKey,
+                this.sourceId,
+                this.config.apiVersion,
+                verification,
+                step.verificationStepId,
+                response
+              );
+            }
+          );
         }
-      }
-      catch(error){
+      } catch (error) {
         Logger.error(
-            "Could not process step",
-            error).setParameters(
-            {step: step}).log()
+          "Handle Verification Step - Could not process step:",
+          error
+        )
+          .setParameters({ step: step })
+          .log();
       }
     }
   }
 
-  private defaultVerificationOptions(){
+  private defaultVerificationOptions() {
     return {
       maxDuration: 120000,
       pollingInterval: POLL_INTERVAL_MS,
-      terminalStates:[
-          VerificationOutcome.COMPLETE,
-          VerificationOutcome.ERROR,
-          VerificationOutcome.APPROVED,
-          VerificationOutcome.DENIED
-      ]
-    }
+      terminalStates: [
+        VerificationOutcome.COMPLETE,
+        VerificationOutcome.ERROR,
+        VerificationOutcome.APPROVED,
+        VerificationOutcome.DENIED,
+      ],
+    };
   }
 
-  private verifyTimeDelta(startDate: Date, options?: IVerificationInvocationOptions){
-    let maxDelta = options?.maxDuration
-    let toReturn = maxDelta?
-        (Date.now() - startDate.valueOf()) < maxDelta:
-        true
+  private verifyTimeDelta(
+    startDate: Date,
+    options?: IVerificationInvocationOptions
+  ) {
+    let maxDelta = options?.maxDuration;
+    let toReturn = maxDelta
+      ? Date.now() - startDate.valueOf() < maxDelta
+      : true;
 
-    return toReturn
+    return toReturn;
   }
 
   private handleVerificationOutcome(
@@ -223,104 +243,127 @@ export class Dodgeball {
     context: IVerificationContext,
     options: IVerificationInvocationOptions
   ): void {
-
     // Call the appropriate callback function if the verification is complete.
     // Otherwise, subscribe to the verification.
     (async () => {
-      Logger.trace("handle verfication outcome called",
-          {verification: verification}).log();
+      Logger.trace("Handle Verification Outcome - Called", {
+        verification: verification,
+      }).log();
 
-      let isTerminal = false
-      let numIterations = 0
-      let startTime = new Date()
+      let isTerminal = false;
+      let numIterations = 0;
+      let startTime = new Date();
 
-      while (!isTerminal &&
-      (numIterations == 0 || this.verifyTimeDelta(startTime, options))) {
-
+      while (
+        !isTerminal &&
+        (numIterations == 0 || this.verifyTimeDelta(startTime, options))
+      ) {
         if (numIterations > 0) {
           // Sleep between iterations
-          await new Promise((resolve) => setTimeout(resolve, options.pollingInterval));
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.pollingInterval)
+          );
 
-          // To Do: add retry logic
-          let response = await queryVerification(
+          // TODO: add retry logic
+          try {
+            let response = await queryVerification(
               this.config.apiUrl as string,
               this.publicKey,
               this.config.apiVersion,
               verification
-          )
+            );
 
-          verification = response.verification
-        }
-
-        let verificationOutcome = verification?.outcome ?? VerificationOutcome.APPROVED
-        let stateName = verificationOutcome.valueOf()
-        isTerminal = (!verification ||
-            verificationOutcome === VerificationOutcome.COMPLETE ||
-            verificationOutcome === VerificationOutcome.ERROR ||
-            verificationOutcome === VerificationOutcome.APPROVED ||
-            verificationOutcome === VerificationOutcome.DENIED)
-        numIterations += 1
-
-        if(!isTerminal){
-          let verificationSteps = this.filterSeenSteps(verification.nextSteps ?? [])
-          while (verificationSteps && verificationSteps.length > 0) {
-            await this.handleVerificationStep(verification, verificationSteps[0], context)
-            verificationSteps = this.filterSeenSteps(verificationSteps)
+            verification = response.verification;
+          } catch (e) {
+            Logger.error("Error Querying Verification Status", e).log();
           }
         }
 
-        switch(verificationOutcome){
+        let verificationOutcome =
+          verification?.outcome ?? VerificationOutcome.APPROVED;
+        let stateName = verificationOutcome.valueOf();
+        isTerminal =
+          !verification ||
+          verificationOutcome === VerificationOutcome.COMPLETE ||
+          verificationOutcome === VerificationOutcome.ERROR ||
+          verificationOutcome === VerificationOutcome.APPROVED ||
+          verificationOutcome === VerificationOutcome.DENIED;
+        numIterations += 1;
+
+        if (!isTerminal) {
+          let verificationSteps = this.filterSeenSteps(
+            verification.nextSteps ?? []
+          );
+          while (verificationSteps && verificationSteps.length > 0) {
+            await this.handleVerificationStep(
+              verification,
+              verificationSteps[0],
+              context
+            );
+            verificationSteps = this.filterSeenSteps(verificationSteps);
+          }
+        }
+
+        switch (verificationOutcome) {
           case VerificationOutcome.COMPLETE:
-              context.onError({
-                errorType: VerificationErrorType.COMPLETE_NO_DECISION
-              })
+            context.onError({
+              errorType: VerificationErrorType.COMPLETE_NO_DECISION,
+            });
             break;
 
           case VerificationOutcome.ERROR:
             context.onError({
               errorType: VerificationErrorType.SYSTEM,
-              details: verification.error
-            })
+              details: verification.error,
+            });
 
-                break;
+            break;
 
           case VerificationOutcome.APPROVED:
             // To match the existing logic.  Will be simplified
-                if(numIterations === 1){
-                  await context.onApproved(verification)
-                }
-                else{
-                  await context.onVerified(verification)
-                }
+            if (numIterations === 1) {
+              await context.onApproved(verification);
+            } else {
+              // TODO: Find a cleaner way to get MFA to dismiss
+              const executors: IExecutionIntegration[] =
+                this.integrationLoader.filterIntegrationsByPurpose(
+                  this.integrations,
+                  IntegrationPurpose.EXECUTE
+                ) as any[];
+              for (const executor of executors) {
+                await executor.cleanup();
+              }
+
+              await context.onVerified(verification);
+            }
             break;
 
           case VerificationOutcome.DENIED:
-            if(context.onDenied) {
-              await context.onDenied(verification)
+            if (context.onDenied) {
+              await context.onDenied(verification);
             }
             break;
 
           case VerificationOutcome.PENDING:
           case VerificationOutcome.WAITING:
-            if(context.onPending){
-              await context.onPending(verification)
+            if (context.onPending) {
+              await context.onPending(verification);
             }
             break;
 
-
           case VerificationOutcome.BLOCKED:
-            if(context.onBlocked){
-              await context.onBlocked(verification)
+            if (context.onBlocked) {
+              await context.onBlocked(verification);
             }
             break;
 
           default:
-            Logger.info(`Unknown Verification Outcome: ${verificationOutcome}`)
-                break;
+            Logger.info(`Unknown Verification Outcome: ${verificationOutcome}`);
+            break;
         }
       }
 
-      return
+      return;
     })();
   }
 
@@ -359,17 +402,16 @@ export class Dodgeball {
     context: IVerificationContext,
     options?: IHandleVerificationOptions
   ): void {
-    let fullOptions = this.defaultVerificationOptions()
-    fullOptions.maxDuration = options? options.maxDuration: fullOptions.maxDuration
+    let fullOptions = this.defaultVerificationOptions();
+    fullOptions.maxDuration = options
+      ? options.maxDuration
+      : fullOptions.maxDuration;
 
-    this.handleVerificationOutcome(
-        verification,
-        context,
-        fullOptions)
+    this.handleVerificationOutcome(verification, context, fullOptions);
   }
 
-  public isRunning(verification: IVerification){
-    return (verification.status === VerificationStatus.PENDING)
+  public isRunning(verification: IVerification) {
+    return verification.status === VerificationStatus.PENDING;
   }
 
   public isAllowed(verification: IVerification): boolean {
@@ -392,7 +434,6 @@ export class Dodgeball {
       verification.outcome === VerificationOutcome.ERROR
     );
   }
-
 }
 
 // React hook for use with Dodgeball

@@ -1,3 +1,4 @@
+import { IMfaConfig } from "./integrations/Mfa";
 import {
   ApiVersion,
   IDodgeballVerifyResponse,
@@ -7,9 +8,11 @@ import {
   IntegrationName,
   VerificationOutcome,
   VerificationStatus,
-  IStepResponse
-} from './types';
+  IStepResponse,
+  MfaConfigurableStyle,
+} from "./types";
 import axios, { Method } from "axios";
+import { DEFAULT_STYLES } from "./constants";
 
 interface IRequestParams {
   url: string;
@@ -32,15 +35,24 @@ interface IIdentifyDeviceParams {
   fingerprints: IFingerprint[];
 }
 
+export interface IStyles {
+  [key: string]: string;
+}
+
 // function to wrap axios requests
-export const makeRequest = async ({ url, method, headers, data }: IRequestParams) => {
+export const makeRequest = async ({
+  url,
+  method,
+  headers,
+  data,
+}: IRequestParams) => {
   try {
     const response = await axios({
       method,
       url,
       headers,
       data,
-      timeout: 0
+      timeout: 0,
     });
     return response.data;
   } catch (error) {
@@ -57,20 +69,20 @@ export const constructApiUrl = (url: string, version: string) => {
   }
 
   return `${url}${version}/`;
-}
+};
 
 // function to construct api request headers
 export const constructApiHeaders = (token: string, sourceId?: string) => {
-  let headers: {[key: string]: string} = {
-    'Dodgeball-Public-Key': `${token}`,
+  let headers: { [key: string]: string } = {
+    "Dodgeball-Public-Key": `${token}`,
   };
 
   if (sourceId) {
-    headers['Dodgeball-Source-Id'] = sourceId;
+    headers["Dodgeball-Source-Id"] = sourceId;
   }
 
   return headers;
-}
+};
 
 // function to get integrations to run
 export const getInitializationConfig = async ({
@@ -92,24 +104,35 @@ export const getInitializationConfig = async ({
 };
 
 // function to identify the current device
-export const sendIdentifyDevice = async ({url, token, version, sourceId, fingerprints}: IIdentifyDeviceParams) => {
+export const sendIdentifyDevice = async ({
+  url,
+  token,
+  version,
+  sourceId,
+  fingerprints,
+}: IIdentifyDeviceParams) => {
   const headers = constructApiHeaders(token, sourceId);
   const apiUrl = constructApiUrl(url, version);
 
   const response = await makeRequest({
     url: `${apiUrl}identify`,
-    method: 'POST',
+    method: "POST",
     headers,
     data: {
-      fingerprints
-    }
+      fingerprints,
+    },
   });
 
   return response.id;
-}
+};
 
 // function to poll api for updates to a verification
-export const queryVerification = async (url: string, token: string, version: string, verification: IVerification): Promise<IDodgeballVerifyResponse> => {
+export const queryVerification = async (
+  url: string,
+  token: string,
+  version: string,
+  verification: IVerification
+): Promise<IDodgeballVerifyResponse> => {
   const headers = constructApiHeaders(token);
   const apiUrl = constructApiUrl(url, version);
 
@@ -121,22 +144,42 @@ export const queryVerification = async (url: string, token: string, version: str
   });
 
   return response;
-}
+};
 
+// export const queryVerificationStep = async (
+//   url: string,
+//   token: string,
+//   version: string,
+//   verification: IVerification,
+//   verificationStepId: string
+// ): Promise<IDodgeballVerifyResponse> => {
+//   const headers = constructApiHeaders(token);
+//   const apiUrl = constructApiUrl(url, version);
+
+//   const response = await makeRequest({
+//     url: `${apiUrl}verification/${verification.id}/${verificationStepId}`,
+//     method: "GET",
+//     headers,
+//     data: null,
+//   });
+
+//   return response;
+// };
 
 // function to poll api for updates to a verification
 export const setVerificationResponse = async (
-    url: string,
-    token: string,
-    sourceId: string,
-    version: string,
-    verification: IVerification,
-    verificationStepId: string,
-    stepResponse: IStepResponse): Promise<any> => {
+  url: string,
+  token: string,
+  sourceId: string,
+  version: string,
+  verification: IVerification,
+  verificationStepId: string,
+  stepResponse: IStepResponse
+): Promise<any> => {
   const headers = constructApiHeaders(token);
-  headers['dodgeball-source-id'] = sourceId
-  headers['dodgeball-plugin-name'] = stepResponse.pluginName
-  headers['dodgeball-method-name'] = stepResponse.methodName
+  headers["dodgeball-source-id"] = sourceId;
+  headers["dodgeball-plugin-name"] = stepResponse.pluginName;
+  headers["dodgeball-method-name"] = stepResponse.methodName;
   const apiUrl = constructApiUrl(url, version);
 
   const response = await makeRequest({
@@ -146,15 +189,14 @@ export const setVerificationResponse = async (
     data: stepResponse.data ?? {},
   });
 
-  return response
-}
-
+  return response;
+};
 
 // Load an external script
 export const loadScript = async (url: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
-      const script = document.createElement('script');
+      const script = document.createElement("script");
       script.src = url;
       script.async = true;
       script.onload = () => {
@@ -165,36 +207,99 @@ export const loadScript = async (url: string): Promise<void> => {
       reject(error);
     }
   });
-}
+};
 
-export type NodeCleanupMethod = ()=>Promise<void>
-export const cleanupNodes = async (parentNode: HTMLElement, childNode: HTMLElement)=>{
-  await parentNode.removeChild(childNode)
-}
+export type NodeCleanupMethod = () => Promise<void>;
+export const cleanupNodes = async (
+  parentNode: HTMLElement,
+  childNode: HTMLElement
+) => {
+  await parentNode.removeChild(childNode);
+};
+export const formatStyles = (styleObj: IStyles): string => {
+  let styles = "";
+
+  Object.keys(styleObj).forEach((styleName) => {
+    styles += `${styleName}:${styleObj[styleName]};`;
+  });
+
+  return styles;
+};
+
+export const setStyles = (el: HTMLElement, styleObj: IStyles): HTMLElement => {
+  el.style.cssText = formatStyles(styleObj);
+  return el;
+};
+
+export const createEl = (elType: string, styleObj: IStyles): HTMLElement => {
+  let el = document.createElement(elType);
+  setStyles(el, styleObj);
+  return el;
+};
+
+export const getMfaConfigurableStyle = (
+  configurableStyle: MfaConfigurableStyle,
+  config: IMfaConfig
+) => {
+  let style = DEFAULT_STYLES[configurableStyle];
+
+  if (
+    config &&
+    config.hasOwnProperty("customStyles") &&
+    config.customStyles?.hasOwnProperty(configurableStyle)
+  ) {
+    style = config.customStyles[configurableStyle] as string;
+  }
+
+  return style;
+};
+
 // Popup a Modal Dialog and give a reference to it
-export const popupModal = async(
-    modalAccessor: ()=>Promise<HTMLElement>,
-    formatter: (modal:HTMLElement, rootElement:HTMLElement) => void)=> {
-
-  console.log("About to popup")
+export const popupModal = async (
+  modalAccessor: () => Promise<HTMLElement>,
+  formatter: (modal: HTMLElement, rootElement: HTMLElement) => void,
+  config: IMfaConfig
+) => {
+  console.log("About to popup");
   try {
-    let modal = await modalAccessor()
-    modal.style.cssText =
-        `display:flex;justify-content:center;align-items:center;position:fixed;
-        top:0;left:0;right:0;bottom:0;z-index:99999;background-color:rgba(0, 0, 0, 0.3);`;
+    let modal = await modalAccessor();
+    modal = setStyles(modal, {
+      display: "flex",
+      "justify-content": "center",
+      "align-items": "center",
+      position: "fixed",
+      top: "0px",
+      left: "0px",
+      right: "0px",
+      bottom: "0px",
+      "z-index": "9999",
+      "background-color": "rgba(0, 0, 0, 0.3)",
+    });
 
-    let innerModal = await document.createElement('div')
-    innerModal.style.cssText = 'justify-self:center;padding:10px;background-color:white'
+    let innerModal = await document.createElement("div");
+    setStyles(innerModal, {
+      "justify-self": "center",
+      padding: "0px",
+      "background-color": getMfaConfigurableStyle(
+        MfaConfigurableStyle.MODAL_BACKGROUND_COLOR,
+        config
+      ),
+      "border-radius": getMfaConfigurableStyle(
+        MfaConfigurableStyle.MODAL_BORDER_RADIUS,
+        config
+      ),
+      "max-width": "600px",
+      "min-width": "600px",
+    });
 
     if (formatter) {
-      formatter(innerModal, modal)
+      formatter(innerModal, modal);
     }
 
-    modal.appendChild(innerModal)
+    modal.appendChild(innerModal);
     document.body.appendChild(modal);
-    console.log("Got through popup without failure")
+    console.log("Got through popup without failure");
+  } catch (error) {
+    console.error("Could not pop up modal", error);
   }
-  catch(error){
-    console.error("Could not pop up modal", error)
-  }
-}
+};

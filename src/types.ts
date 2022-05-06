@@ -19,7 +19,7 @@ export enum VerificationOutcome {
   // Processing is complete, but no decision
   // was taken.  Clients should only perform
   // safe actions in this case.
-  COMPLETE = "COMPLETE"
+  COMPLETE = "COMPLETE",
 }
 
 export interface IVerification {
@@ -31,27 +31,25 @@ export interface IVerification {
   error?: string;
 }
 
-export enum VerificationErrorType{
-  SYSTEM = 'SYSTEM',
-  TIMEOUT = 'TIMEOUT',
-  COMPLETE_NO_DECISION = 'COMPLETE_NO_DECISION'
+export enum VerificationErrorType {
+  SYSTEM = "SYSTEM",
+  TIMEOUT = "TIMEOUT",
+  COMPLETE_NO_DECISION = "COMPLETE_NO_DECISION",
 }
 
-export interface IVerificationError{
+export interface IVerificationError {
   errorType: VerificationErrorType;
-  details?: string
+  details?: string;
 }
 
-export const systemError = (errorText?:string)=>{
+export const systemError = (errorText?: string) => {
   return {
     errorType: VerificationErrorType.SYSTEM,
-    details: errorText
-  }
-}
+    details: errorText,
+  };
+};
 
-export interface ITimeoutError extends IVerificationError{
-
-}
+export interface ITimeoutError extends IVerificationError {}
 
 export interface IVerificationContext {
   onPending?: (verification: IVerification) => Promise<void>;
@@ -60,7 +58,7 @@ export interface IVerificationContext {
   onDenied?: (verification: IVerification) => Promise<void>;
   onBlocked?: (verification: IVerification) => Promise<void>;
   onError: (error: IVerificationError) => Promise<void>;
-  onTimeout?: (timeoutError: ITimeoutError)=> Promise<void>;
+  onTimeout?: (timeoutError: ITimeoutError) => Promise<void>;
 }
 
 export interface ILibConfig {
@@ -79,10 +77,10 @@ export interface IVerificationStepData {
   customMessage?: string;
 }
 
-export interface IStepResponse{
+export interface IStepResponse {
   pluginName: string;
   methodName: string;
-  data?: any
+  data?: any;
 }
 
 export interface IInitConfig {
@@ -107,7 +105,7 @@ export enum IntegrationName {
   SIFT_SCORE = "SIFT SCORE",
   FINGERPRINTJS = "FINGERPRINTJS",
   STRIPE_IDENTITY = "STRIPE_IDENTITY",
-  MFA = "MFA"
+  MFA = "MFA",
 }
 
 export enum IntegrationPurpose {
@@ -144,14 +142,14 @@ export interface IObserverIntegration {
   observe(sourceId: string): void;
 }
 
-
-
-export interface IExecutionIntegration{
-  execute(step: IVerificationStep,
-          context: IVerificationContext,
-          responseCallback: (stepResponse: IStepResponse)=>Promise<void>): Promise<any>
+export interface IExecutionIntegration {
+  execute(
+    step: IVerificationStep,
+    context: IVerificationContext,
+    responseCallback: (stepResponse: IStepResponse) => Promise<void>
+  ): Promise<any>;
+  cleanup(): Promise<void>;
 }
-
 
 export interface IQualifierIntegration {
   qualify(context: IVerificationContext): Promise<any>;
@@ -186,3 +184,85 @@ export interface IDodgeballConfig {
 //   publicKey: string;
 //   verificationSessionClientSecret: string; // Generated server-side (on Dodgeball's servers) by stripe.identity.verificationSessions.create() call
 // }
+
+export enum ConfigurableFontWeight {
+  LIGHT = "300",
+  REGULAR = "400",
+  MEDIUM = "500",
+  SEMI_BOLD = "600",
+  BOLD = "700",
+}
+
+export enum MfaConfigurableStyle {
+  MODAL_BORDER_RADIUS = "MODAL_BORDER_RADIUS",
+  MODAL_BACKGROUND_COLOR = "MODAL_BACKGROUND_COLOR",
+  HEADER_BACKGROUND_COLOR = "HEADER_BACKGROUND_COLOR",
+  HEADER_TITLE_TEXT = "HEADER_TITLE_TEXT",
+  HEADER_LOGO = "HEADER_LOGO",
+  HEADER_TEXT_COLOR = "HEADER_TEXT_COLOR",
+  HEADER_TEXT_SIZE = "HEADER_TEXT_SIZE",
+  HEADER_TEXT_WEIGHT = "HEADER_TEXT_WEIGHT",
+  HEADER_UNDERLINE_COLOR = "HEADER_UNDERLINE_COLOR",
+  HEADER_UNDERLINE_THICKNESS = "HEADER_UNDERLINE_THICKNESS",
+  CONTENT_TITLE_TEXT = "CONTENT_TITLE_TEXT",
+  CONTENT_TITLE_COLOR = "CONTENT_TITLE_COLOR",
+  CONTENT_TITLE_SIZE = "CONTENT_TITLE_SIZE",
+  CONTENT_TITLE_WEIGHT = "CONTENT_TITLE_WEIGHT",
+  CONTENT_SUBTITLE_COLOR = "CONTENT_SUBTITLE_COLOR",
+  CONTENT_SUBTITLE_SIZE = "CONTENT_SUBTITLE_SIZE",
+  CONTENT_SUBTITLE_WEIGHT = "CONTENT_SUBTITLE_WEIGHT",
+  CONTENT_VERIFIED_TITLE_TEXT = "CONTENT_VERIFIED_TITLE_TEXT",
+  CONTENT_VERIFIED_SUBTITLE_TEXT = "CONTENT_VERIFIED_SUBTITLE_TEXT",
+  CONTENT_AUTHORIZE_TEXT = "CONTENT_AUTHORIZE_TEXT",
+  CONTENT_VERIFY_TEXT = "CONTENT_VERIFY_TEXT",
+  CONTENT_DESCRIPTION_COLOR = "CONTENT_DESCRIPTION_COLOR",
+  CONTENT_DESCRIPTION_SIZE = "CONTENT_DESCRIPTION_SIZE",
+  CONTENT_DESCRIPTION_WEIGHT = "CONTENT_DESCRIPTION_WEIGHT",
+  CONTENT_EXPLANATION_TEXT = "CONTENT_EXPLANATION_TEXT",
+  CONTENT_DISCLAIMER_TEXT = "CONTENT_DISCLAIMER_TEXT",
+  CONTENT_PROMPT_TEXT = "CONTENT_PROMPT_TEXT",
+  CONTENT_CODE_INPUT_LABEL_TEXT_COLOR = "CONTENT_CODE_INPUT_LABEL_TEXT_COLOR",
+  CONTENT_CODE_INPUT_LABEL_TEXT_SIZE = "CONTENT_CODE_INPUT_LABEL_TEXT_SIZE",
+  CONTENT_CODE_INPUT_LABEL_TEXT_WEIGHT = "CONTENT_CODE_INPUT_LABEL_TEXT_WEIGHT",
+  CONTENT_CODE_INPUT_BORDER_RADIUS = "CONTENT_CODE_INPUT_BORDER_RADIUS",
+  CONTENT_CODE_INPUT_BORDER_COLOR = "CONTENT_CODE_INPUT_BORDER_COLOR",
+  CONTENT_CODE_INPUT_BORDER_THICKNESS = "CONTENT_CODE_INPUT_BORDER_THICKNESS",
+  CONTENT_CODE_INPUT_TEXT_COLOR = "CONTENT_CODE_INPUT_TEXT_COLOR",
+  CONTENT_CODE_INPUT_TEXT_SIZE = "CONTENT_CODE_INPUT_TEXT_SIZE",
+  CONTENT_CODE_INPUT_TEXT_WEIGHT = "CONTENT_CODE_INPUT_TEXT_WEIGHT",
+  CONTENT_CODE_INPUT_VERTICAL_PADDING = "CONTENT_CODE_INPUT_VERTICAL_PADDING",
+  CONTENT_CODE_INPUT_HORIZONTAL_PADDING = "CONTENT_CODE_INPUT_HORIZONTAL_PADDING",
+  CONTENT_OPTION_TEXT_COLOR = "CONTENT_OPTION_TEXT_COLOR",
+  CONTENT_OPTION_TEXT_SIZE = "CONTENT_OPTION_TEXT_SIZE",
+  CONTENT_OPTION_TEXT_WEIGHT = "CONTENT_OPTION_TEXT_WEIGHT",
+  CONTENT_HELP_LINK_COLOR = "CONTENT_HELP_LINK_COLOR",
+  CONTENT_HELP_LINK_HOVER_COLOR = "CONTENT_HELP_LINK_HOVER_COLOR",
+  CONTENT_HELP_LINK_SIZE = "CONTENT_HELP_LINK_SIZE",
+  CONTENT_HELP_LINK_WEIGHT = "CONTENT_HELP_LINK_WEIGHT",
+  CONTENT_RESEND_CODE_TEXT = "CONTENT_RESEND_CODE_TEXT",
+  CONTENT_BORDER_THICKNESS = "CONTENT_BORDER_THICKNESS",
+  CONTENT_BORDER_COLOR = "CONTENT_BORDER_COLOR",
+  BUTTON_TEXT_SIZE = "BUTTON_TEXT_SIZE",
+  BUTTON_TEXT_WEIGHT = "BUTTON_TEXT_WEIGHT",
+  BUTTON_GAP = "BUTTON_GAP",
+  BUTTON_BORDER_RADIUS = "BUTTON_BORDER_RADIUS",
+  BUTTON_BORDER_THICKNESS = "BUTTON_BORDER_THICKNESS",
+  BUTTON_HORIZONTAL_PADDING = "BUTTON_HORIZONTAL_PADDING",
+  BUTTON_VERTICAL_PADDING = "BUTTON_VERTICAL_PADDING",
+  CANCEL_BUTTON_COLOR = "CANCEL_BUTTON_COLOR",
+  CANCEL_BUTTON_TEXT_COLOR = "CANCEL_BUTTON_TEXT_COLOR",
+  CANCEL_BUTTON_BORDER_COLOR = "CANCEL_BUTTON_BORDER_COLOR",
+  CANCEL_BUTTON_HOVER_COLOR = "CANCEL_BUTTON_HOVER_COLOR",
+  CANCEL_BUTTON_HOVER_TEXT_COLOR = "CANCEL_BUTTON_HOVER_TEXT_COLOR",
+  CANCEL_BUTTON_HOVER_BORDER_COLOR = "CANCEL_BUTTON_HOVER_BORDER_COLOR",
+  SUBMIT_BUTTON_COLOR = "SUBMIT_BUTTON_COLOR",
+  SUBMIT_BUTTON_TEXT_COLOR = "SUBMIT_BUTTON_TEXT_COLOR",
+  SUBMIT_BUTTON_BORDER_COLOR = "SUBMIT_BUTTON_BORDER_COLOR",
+  SUBMIT_BUTTON_HOVER_COLOR = "SUBMIT_BUTTON_HOVER_COLOR",
+  SUBMIT_BUTTON_HOVER_TEXT_COLOR = "SUBMIT_BUTTON_HOVER_TEXT_COLOR",
+  SUBMIT_BUTTON_HOVER_BORDER_COLOR = "SUBMIT_BUTTON_HOVER_BORDER_COLOR",
+  DISABLED_BUTTON_COLOR = "DISABLED_BUTTON_COLOR",
+  DISABLED_BUTTON_TEXT_COLOR = "DISABLED_BUTTON_TEXT_COLOR",
+  DISABLED_BUTTON_BORDER_COLOR = "DISABLED_BUTTON_BORDER_COLOR",
+  COMPLETE_AUTO_CLOSE_DELAY = "COMPLETE_AUTO_CLOSE_DELAY",
+}

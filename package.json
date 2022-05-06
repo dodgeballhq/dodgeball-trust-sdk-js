@@ -14,11 +14,33 @@
     "build:esm": "node tools/cleanup esm && tsc -p config/tsconfig.esm.json",
     "build:umd": "node tools/cleanup umd && webpack --config config/webpack.config.js",
     "build:types": "node tools/cleanup types && tsc -p config/tsconfig.types.json",
+    "watch": "npm-watch",
+    "link": "npm link",
     "clean": "node tools/cleanup",
     "package": "npm run build && npm pack",
     "test": "jest --no-cache --runInBand",
     "test:cov": "jest --coverage --no-cache --runInBand",
     "addscope": "node tools/packagejson name @dodgeball/trust-sdk-client"
+  },
+  "watch": {
+    "build": {
+      "patterns": ["src"],
+      "extensions": "ts",
+      "ignore": [
+        "dist",
+        "node_modules"
+      ],
+      "quite": true
+    },
+    "link": {
+      "patterns": ["dist/types"],
+      "extensions": "ts",
+      "ignore": [
+        "src",
+        "node_modules"
+      ],
+      "delay": 4000
+    }
   },
   "author": "Dodgeball <support@dodgeballhq.com> (https://dodgeballhq.com/)",
   "contributors": [
@@ -44,6 +66,7 @@
     "eslint-plugin-prettier": "^4.0.0",
     "husky": "^7.0.2",
     "jest": "^27.2.0",
+    "npm-watch": "^0.11.0",
     "pinst": "^2.1.6",
     "prettier": "^2.4.0",
     "ts-jest": "^27.0.5",
