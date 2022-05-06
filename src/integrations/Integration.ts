@@ -3,11 +3,10 @@ import {
   IIntegrationProps,
   IntegrationName,
   IntegrationPurpose,
-    IReconfigureIntegrationProps
+  IReconfigureIntegrationProps,
 } from "../types";
 
 import { loadScript } from "../utilities";
-
 
 export default abstract class Integration {
   config: IIntegrationConfig = {};
@@ -25,9 +24,8 @@ export default abstract class Integration {
   }
 
   public async load() {
-    console.log("About to load: ", this.name)
+    console.log("Integration - About to load: ", this.name);
     return await loadScript(this.url);
-    console.log("Loaded loadscript")
   }
 
   public abstract configure(): Promise<void>;
