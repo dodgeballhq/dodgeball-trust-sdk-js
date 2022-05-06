@@ -1278,12 +1278,16 @@ export default class MfaIntegration
 
   public async cleanup(): Promise<void> {
     MfaIntegration.removeModal();
-    popupModal(
-      MfaIntegration.getModal,
-      (modal, rootElement) => {
-        this.formatCodeApproved(modal, rootElement);
-      },
-      this.config as IMfaConfig
-    );
+    const showModal = this.getStyle(MfaConfigurableStyle.SHOW_COMPLETE_SCREEN) === "true";
+
+    if (showModal) {
+      popupModal(
+        MfaIntegration.getModal,
+        (modal, rootElement) => {
+          this.formatCodeApproved(modal, rootElement);
+        },
+        this.config as IMfaConfig
+      );
+    }
   }
 }
