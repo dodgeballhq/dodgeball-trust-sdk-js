@@ -89,7 +89,11 @@ export default class MfaIntegration
       purposes: [IntegrationPurpose.EXECUTE],
       requestId,
     });
-    console.log("MFA CONSTRUCTOR CALLED", config);
+    Logger.trace("MFA - constructor").log();
+  }
+
+  public hasLoaded(): boolean {
+    return true;
   }
 
   public async configure() {}
@@ -99,7 +103,7 @@ export default class MfaIntegration
     config,
     requestId,
   }: IMfaProps): Promise<void> {
-    console.log("MFA RECONFIGURE CALLED", config);
+    Logger.trace("MFA - reconfigure").log();
     this._resetConfig({ url, config, requestId });
     await this.configure();
   }
@@ -396,13 +400,11 @@ export default class MfaIntegration
     rootElement: HTMLElement,
     responseConsumer: (stepResponse: IStepResponse) => Promise<any>
   ) {
-    Logger.trace("About to format authorization", {
+    Logger.trace("MFA - formatAuthorization", {
       config: this.config,
     }).log();
 
     const configs = this.config as IMfaConfig;
-
-    let isSubmitEnabled = false;
 
     // Add the header
     parent.appendChild(this.getHeader());
@@ -430,10 +432,6 @@ export default class MfaIntegration
     contentContainer.appendChild(contentDescription);
 
     // Add the channel selection section
-
-    // We need the list of radio boxes in order to determine which
-    // ones have been authorized to receive a code.  The first selected
-    // is the only one targeted
     const channelBoxes: HTMLInputElement[] = [];
 
     const optionsContainer = createEl("div", {
@@ -508,8 +506,6 @@ export default class MfaIntegration
 
     contentContainer.appendChild(contentDisclaimer);
 
-    // TODO: Add the having trouble section (purposely not implemented for now while we figure out flow)
-
     // Add the buttons section
     const { controls, submitRef } = this.getControls({
       cancelText: "Cancel",
@@ -529,7 +525,6 @@ export default class MfaIntegration
     });
 
     const toggleSubmitEnabled = (isEnabled: boolean) => {
-      isSubmitEnabled = isEnabled;
       submitRef.disabled = !isEnabled;
       // Then update the styles
       if (isEnabled) {
@@ -567,13 +562,11 @@ export default class MfaIntegration
     rootElement: HTMLElement,
     responseConsumer: (stepResponse: IStepResponse) => Promise<any>
   ) {
+    Logger.trace("MFA - formatGetCode").log();
     const configs = this.config as IMfaConfig;
 
     const numChars = configs.numChars ?? 6;
     let isSubmitEnabled = false;
-    let isRequestNewCodeEnabled = false;
-    let isCodeInputEnabled = false;
-    let shouldDisableSubmit = false;
     let shouldDisableRequestNewCode = false;
     let toggleSubmitEnabled: Function;
     let toggleRequestNewCodeEnabled: Function;
@@ -613,14 +606,12 @@ export default class MfaIntegration
         );
         errorText = "Maximum Number of Verification Attempts Exceeded";
         errorDescription = `Please wait to try another code... ${timeDiff}sec`;
-        shouldDisableSubmit = true;
         shouldDisableCodeInput = true;
       } else if (configs.lastCodeInvalid) {
         errorText = "Incorrect Authorization Code";
         errorDescription = "Please enter the correct authorization code.";
       }
 
-      // TODO: Make these styles configurable
       const errorContainer = createEl("div", {
         padding: "8px 10px",
         border: "1px solid #CC0000",
@@ -807,6 +798,7 @@ export default class MfaIntegration
 
     codeInput.placeholder = "_ ".repeat(numChars);
     codeInput.maxLength = numChars;
+    codeInput.autofocus = true;
 
     codeInput.addEventListener("input", (ev) => {
       if (codeInput.disabled) {
@@ -909,9 +901,7 @@ export default class MfaIntegration
     };
 
     toggleRequestNewCodeEnabled = (isEnabled: boolean) => {
-      isRequestNewCodeEnabled = isEnabled;
       requestAnother.disabled = !isEnabled;
-      // Then update the styles
       if (isEnabled) {
         requestAnother.style.color = this.getStyle(
           MfaConfigurableStyle.CONTENT_HELP_LINK_COLOR
@@ -924,9 +914,7 @@ export default class MfaIntegration
     };
 
     toggleCodeInputEnabled = (isEnabled: boolean) => {
-      isCodeInputEnabled = isEnabled;
       codeInput.disabled = !isEnabled;
-      // Then update the styles
       if (isEnabled) {
         codeInput.style.color = this.getStyle(
           MfaConfigurableStyle.CONTENT_CODE_INPUT_TEXT_COLOR
@@ -954,6 +942,7 @@ export default class MfaIntegration
   }
 
   formatCodeApproved(parent: HTMLElement, rootElement: HTMLElement) {
+    Logger.trace("MFA - formatCodeApproved").log();
     const configs = this.config as IMfaConfig;
 
     parent.appendChild(this.getHeader());
@@ -967,7 +956,6 @@ export default class MfaIntegration
       ),
     });
 
-    // TODO: Make these styles configurable
     const successContainer = createEl("div", {
       padding: "8px 10px",
       border: "1px solid #008800",
@@ -1046,6 +1034,7 @@ export default class MfaIntegration
     modal: HTMLElement,
     responseConsumer: (stepResponse: IStepResponse) => Promise<any>
   ): Promise<void> {
+    Logger.trace("MFA - onCancel").log();
     let wasSuccessful = false;
     let response = {
       pluginName: "MFA",
@@ -1056,7 +1045,7 @@ export default class MfaIntegration
       await responseConsumer(response);
       wasSuccessful = true;
     } catch (error) {
-      Logger.error("Error in cancel", error).log();
+      Logger.error("MFA - onCancel: error", error).log();
     }
 
     if (wasSuccessful) {
@@ -1076,7 +1065,7 @@ export default class MfaIntegration
     cleanupMethod: NodeCleanupMethod | null,
     responseConsumer: (stepResponse: IStepResponse) => Promise<any>
   ): Promise<void> {
-    Logger.trace("Authorize").log();
+    Logger.trace("MFA - onAuthorize").log();
 
     let selectedId: string | null = null;
     for (var box of radioBoxes) {
@@ -1098,16 +1087,7 @@ export default class MfaIntegration
         },
       };
       let response = await responseConsumer(stepResponse);
-      Logger.trace("Callback response", { response: response }).log();
-
-      // MfaIntegration.removeModal();
-      // popupModal(
-      //   MfaIntegration.getModal,
-      //   (modal, rootElement) => {
-      //     this.formatGetCode(modal, rootElement, responseConsumer);
-      //   },
-      //   this.config as IMfaConfig
-      // );
+      Logger.trace("MFA - onAuthorize: response", { response: response }).log();
     }
   }
 
@@ -1115,28 +1095,11 @@ export default class MfaIntegration
     modal: HTMLElement,
     responseConsumer: (stepResponse: IStepResponse) => Promise<any>
   ): Promise<void> {
-    // let wasSuccessful = false;
-    // let response = {
-    //   pluginName: "MFA",
-    //   methodName: MfaClientOperation.RESEND,
-    // };
-
-    // try {
-    //   await responseConsumer(response);
-    //   wasSuccessful = true;
-    // } catch (error) {
-    //   // TO DO: display this error
-    //   Logger.error("Response Consumer", error).log();
-    // }
-
-    // if (wasSuccessful) {
-    //   MfaIntegration.removeModal();
-    // }
+    Logger.trace("MFA - onResend").log();
     MfaIntegration.removeModal();
     popupModal(
       MfaIntegration.getModal,
       (modal, rootElement) => {
-        // this.formatResendCode(modal, rootElement, responseConsumer);
         this.formatAuthorization(modal, rootElement, responseConsumer);
       },
       this.config as IMfaConfig
@@ -1149,7 +1112,7 @@ export default class MfaIntegration
     responseConsumer: (stepResponse: IStepResponse) => Promise<any>
   ): Promise<void> {
     try {
-      Logger.trace("onGetCode").log();
+      Logger.trace("MFA - onGetCode").log();
       let inputText = codeInput.value;
 
       let config = this.config as IMfaConfig;
@@ -1167,36 +1130,23 @@ export default class MfaIntegration
 
         try {
           const response = await responseConsumer(stepResponse);
-          Logger.trace("On Get Code response", { response: response }).log();
+          Logger.trace("MFA - onGetCode: response", {
+            response: response,
+          }).log();
           wasSuccessful = true;
         } catch (error) {
-          // TO DO: display this error
-          Logger.error("On Get Code", error).log();
+          Logger.error("MFA - onGetCode: error", error).log();
         }
       }
-
-      // if (wasSuccessful) {
-      //   MfaIntegration.removeModal();
-      //   popupModal(
-      //     MfaIntegration.getModal,
-      //     (modal, rootElement) => {
-      //       this.formatCodeApproved(modal, rootElement, responseConsumer);
-      //     },
-      //     this.config as IMfaConfig
-      //   );
-      // }
     } catch (error) {
-      Logger.error("onGetCode error", error).log();
+      Logger.error("MFA - onGetCode: error", error).log();
     }
   }
 
   public static async getModal(): Promise<HTMLElement> {
-    // This follows a double-checked locking idiom, required
-    // since the inner await may result in a thread transition
     if (!MfaIntegration.modalElement) {
       let newElement = document.createElement("div");
 
-      // Absent an await execution is blocking, so no lock is needed
       if (!MfaIntegration.modalElement) {
         MfaIntegration.modalElement = newElement;
       }
@@ -1219,7 +1169,7 @@ export default class MfaIntegration
     context: IVerificationContext,
     responseConsumer: (response: IStepResponse) => Promise<any>
   ): Promise<any> {
-    Logger.trace("Mfa Integration - Execute:", { step: step }).log();
+    Logger.trace("MFA - execute:", { step: step }).log();
     try {
       let typedConfig: IMfaConfig = step.config as IMfaConfig;
       switch (step.method) {
@@ -1263,24 +1213,27 @@ export default class MfaIntegration
           throw Error(`Unknown operation: ${step.method}`);
       }
     } catch (error) {
-      context.onError({
-        errorType: VerificationErrorType.SYSTEM,
-        details: error as string,
-      });
+      if (context.onError) {
+        context.onError({
+          errorType: VerificationErrorType.SYSTEM,
+          details: error as string,
+        });
+      }
     }
   }
 
   public async load() {
-    Logger.info(
-      "Loading MFA Integration, which is not executable from an external element"
-    ).log();
+    Logger.info("MFA - load").log();
   }
 
   public async cleanup(): Promise<void> {
+    Logger.trace("MFA - cleanup").log();
     MfaIntegration.removeModal();
-    const showModal = this.getStyle(MfaConfigurableStyle.SHOW_COMPLETE_SCREEN) === "true";
+    const showModal =
+      this.getStyle(MfaConfigurableStyle.SHOW_COMPLETE_SCREEN) === "true";
 
     if (showModal) {
+      Logger.trace("MFA - cleanup: show approved").log();
       popupModal(
         MfaIntegration.getModal,
         (modal, rootElement) => {

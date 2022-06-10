@@ -1,4 +1,22 @@
-import { MfaConfigurableStyle, ConfigurableFontWeight } from "./types";
+import {
+  MfaConfigurableStyle,
+  ConfigurableFontWeight,
+  ApiVersion,
+  IDodgeballConfig,
+  IVerificationInvocationOptions,
+} from "./types";
+
+export const POLL_INTERVAL_MS = 3000;
+
+export const DEFAULT_CONFIG: IDodgeballConfig = {
+  apiUrl: "https://api.dodgeballhq.com/",
+  apiVersion: ApiVersion.v1,
+};
+
+export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {
+  maxDuration: 120000,
+  pollingInterval: POLL_INTERVAL_MS,
+};
 
 export const DEFAULT_STYLES: { [key in MfaConfigurableStyle]: string } = {
   MODAL_BORDER_RADIUS: "6px",

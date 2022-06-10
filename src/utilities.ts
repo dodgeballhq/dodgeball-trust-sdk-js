@@ -126,7 +126,6 @@ export const sendIdentifyDevice = async ({
   return response.id;
 };
 
-// function to poll api for updates to a verification
 export const queryVerification = async (
   url: string,
   token: string,
@@ -146,27 +145,6 @@ export const queryVerification = async (
   return response;
 };
 
-// export const queryVerificationStep = async (
-//   url: string,
-//   token: string,
-//   version: string,
-//   verification: IVerification,
-//   verificationStepId: string
-// ): Promise<IDodgeballVerifyResponse> => {
-//   const headers = constructApiHeaders(token);
-//   const apiUrl = constructApiUrl(url, version);
-
-//   const response = await makeRequest({
-//     url: `${apiUrl}verification/${verification.id}/${verificationStepId}`,
-//     method: "GET",
-//     headers,
-//     data: null,
-//   });
-
-//   return response;
-// };
-
-// function to poll api for updates to a verification
 export const setVerificationResponse = async (
   url: string,
   token: string,
@@ -196,13 +174,15 @@ export const setVerificationResponse = async (
 export const loadScript = async (url: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
-      const script = document.createElement("script");
-      script.src = url;
-      script.async = true;
-      script.onload = () => {
-        resolve();
-      };
-      document.body.appendChild(script);
+      if (typeof document !== "undefined") {
+        const script = document.createElement("script");
+        script.src = url;
+        script.async = true;
+        script.onload = () => {
+          resolve();
+        };
+        document.body.appendChild(script);
+      }
     } catch (error) {
       reject(error);
     }

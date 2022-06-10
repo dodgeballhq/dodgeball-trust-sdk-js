@@ -1,9 +1,12 @@
+import { LogLevel } from "./logger";
+
 export enum ApiVersion {
   v1 = "v1",
 }
 
 export enum VerificationStatus {
   PENDING = "PENDING",
+  BLOCKED = "BLOCKED",
   COMPLETE = "COMPLETE",
   FAILED = "FAILED",
 }
@@ -13,13 +16,6 @@ export enum VerificationOutcome {
   DENIED = "DENIED",
   PENDING = "PENDING",
   ERROR = "ERROR",
-  BLOCKED = "BLOCKED",
-  WAITING = "WAITING",
-
-  // Processing is complete, but no decision
-  // was taken.  Clients should only perform
-  // safe actions in this case.
-  COMPLETE = "COMPLETE",
 }
 
 export interface IVerification {
@@ -34,7 +30,6 @@ export interface IVerification {
 export enum VerificationErrorType {
   SYSTEM = "SYSTEM",
   TIMEOUT = "TIMEOUT",
-  COMPLETE_NO_DECISION = "COMPLETE_NO_DECISION",
 }
 
 export interface IVerificationError {
@@ -49,16 +44,14 @@ export const systemError = (errorText?: string) => {
   };
 };
 
-export interface ITimeoutError extends IVerificationError {}
-
 export interface IVerificationContext {
-  onPending?: (verification: IVerification) => Promise<void>;
   onVerified: (verification: IVerification) => Promise<void>;
   onApproved: (verification: IVerification) => Promise<void>;
   onDenied?: (verification: IVerification) => Promise<void>;
+  onPending?: (verification: IVerification) => Promise<void>;
   onBlocked?: (verification: IVerification) => Promise<void>;
-  onError: (error: IVerificationError) => Promise<void>;
-  onTimeout?: (timeoutError: ITimeoutError) => Promise<void>;
+  onUndecided?: (verification: IVerification) => Promise<void>;
+  onError?: (error: IVerificationError) => Promise<void>;
 }
 
 export interface ILibConfig {
@@ -139,7 +132,7 @@ export interface IIdentifierIntegration {
 }
 
 export interface IObserverIntegration {
-  observe(sourceId: string): void;
+  observe(sourceId: string, userId?: string): void;
 }
 
 export interface IExecutionIntegration {
@@ -175,15 +168,19 @@ export interface IDodgeballVerifyResponse {
 
 export interface IDodgeballConfig {
   apiVersion: ApiVersion;
-  apiUrl?: string; // For customers with completely isolated (self-hosted) distributions, they will need to supply a URL to the API.
-  disableCookies?: boolean; // Some customers may not want to use cookies.
+  apiUrl?: string; // For completely isolated (self-hosted) distributions, you will need to supply a URL to the API.
+  logLevel?: LogLevel;
+  disableCookies?: boolean;
 }
 
-// export interface IStripeIdentityConfig {
-//   scriptUrl: string; // https://js.stripe.com/v3/
-//   publicKey: string;
-//   verificationSessionClientSecret: string; // Generated server-side (on Dodgeball's servers) by stripe.identity.verificationSessions.create() call
-// }
+export interface IHandleVerificationOptions {
+  maxDuration: number;
+}
+
+export interface IVerificationInvocationOptions
+  extends IHandleVerificationOptions {
+  pollingInterval: number;
+}
 
 export enum ConfigurableFontWeight {
   LIGHT = "300",
@@ -266,4 +263,34 @@ export enum MfaConfigurableStyle {
   DISABLED_BUTTON_BORDER_COLOR = "DISABLED_BUTTON_BORDER_COLOR",
   SHOW_COMPLETE_SCREEN = "SHOW_COMPLETE_SCREEN",
   COMPLETE_AUTO_CLOSE_DELAY = "COMPLETE_AUTO_CLOSE_DELAY",
+}
+
+// Errors
+export class DodgeballMissingConfigError extends Error {
+  constructor(configName: string, value: any) {
+    super(
+      `Dodgeball SDK Error\nMissing configuration: ${configName}\nProvided Value: ${value}`
+    );
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class DodgeballInvalidConfigError extends Error {
+  constructor(configName: string, value: any, allowedValues: any[]) {
+    super(
+      `Dodgeball SDK Error\nInvalid configuration: ${configName}\nProvided value: ${value}\nAllowed values: ${allowedValues.join(
+        ", "
+      )}`
+    );
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class DodgeballMissingParameterError extends Error {
+  constructor(parameter: string, value: any) {
+    super(
+      `Dodgeball SDK Error\nMissing parameter: ${parameter}\nProvided value: ${value}`
+    );
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
 }
