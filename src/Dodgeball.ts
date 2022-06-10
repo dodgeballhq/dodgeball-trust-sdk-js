@@ -1,20 +1,27 @@
 import {
   ApiVersion,
+  DodgeballInvalidConfigError,
+  DodgeballMissingConfigError,
   IDodgeballConfig,
   IExecutionIntegration,
+  IHandleVerificationOptions,
   IIdentifierIntegration,
+  IInitConfig,
   IntegrationPurpose,
   IObserverIntegration,
   IQualifierIntegration,
   IVerification,
   IVerificationContext,
+  IVerificationInvocationOptions,
   IVerificationStep,
-  VerificationErrorType,
   VerificationOutcome,
   VerificationStatus,
+  systemError,
 } from "./types";
 
-import { Logger } from "./logger";
+import { DEFAULT_CONFIG, DEFAULT_VERIFICATION_OPTIONS } from "./constants";
+
+import { Logger, LogLevel, Severity } from "./logger";
 
 import {
   getInitializationConfig,
@@ -26,69 +33,100 @@ import Identifier from "./Identifier";
 import Integration from "./integrations/Integration";
 import IntegrationLoader from "./IntegrationLoader";
 
-console.log("Dodgeball");
+import cloneDeep from "lodash.clonedeep";
+import { v4 as uuidv4 } from "uuid";
 
-const POLL_INTERVAL_MS = 3000; //1000;
-
-const DEFAULT_CONFIG: IDodgeballConfig = {
-  apiUrl: "https://api.dodgeballhq.com/",
-  apiVersion: ApiVersion.v1,
-};
-
-type VerificationHandler = (
-  verification: IVerification,
-  context: IVerificationContext
-) => Promise<void>;
-
-export interface IHandleVerificationOptions {
-  maxDuration: number;
-}
-
-export interface IVerificationInvocationOptions
-  extends IHandleVerificationOptions {
-  pollingInterval: number;
-  terminalStates: VerificationOutcome[];
-}
-
-// Export a class that accepts a config object
 export class Dodgeball {
-  publicKey: string = "";
-  config: IDodgeballConfig = DEFAULT_CONFIG;
-  identifier?: Identifier;
-  seenSteps: { [key: string]: IVerificationStep } = {};
-  integrationLoader: IntegrationLoader;
-  integrations: Integration[] = [];
-  isIdentified: boolean = false;
-  onIdentified: Function[] = [];
-  sourceId: string = "";
+  private publicKey: string = "";
+  private config: IDodgeballConfig;
+  private identifier: Identifier;
+  private seenSteps: { [key: string]: IVerificationStep } = {};
+  private integrationLoader: IntegrationLoader;
+  private integrations: Integration[] = [];
+  private isSourced: boolean = false;
+  private onSource: Function[] = [];
+  private sourceId: string = "";
 
-  // Constructor
-  constructor() {
-    this.integrationLoader = new IntegrationLoader();
-    Logger.info("Dodgeball Constructor Called").log();
-  }
-
-  public track(publicKey: string, config?: IDodgeballConfig) {
+  constructor(publicKey: string, config?: IDodgeballConfig) {
+    if (publicKey == null || publicKey?.length === 0) {
+      throw new DodgeballMissingConfigError("publicApiKey", publicKey);
+    }
     this.publicKey = publicKey;
-    this.config = Object.assign(DEFAULT_CONFIG, config || {});
 
-    const identifier = (this.identifier = new Identifier({
+    this.config = Object.assign(
+      cloneDeep(DEFAULT_CONFIG),
+      cloneDeep(config || {})
+    );
+
+    if (
+      Object.keys(ApiVersion).indexOf(this.config.apiVersion as ApiVersion) < 0
+    ) {
+      throw new DodgeballInvalidConfigError(
+        "config.apiVersion",
+        this.config.apiVersion,
+        Object.keys(ApiVersion)
+      );
+    }
+
+    const logLevel = this.config.logLevel ?? LogLevel.INFO;
+
+    if (Object.keys(LogLevel).indexOf(logLevel as LogLevel) < 0) {
+      throw new DodgeballInvalidConfigError(
+        "config.logLevel",
+        logLevel,
+        Object.keys(LogLevel)
+      );
+    }
+
+    Logger.filterLevel = Severity[logLevel];
+
+    this.integrationLoader = new IntegrationLoader();
+
+    this.identifier = new Identifier({
       cookiesEnabled: !this.config.disableCookies,
       apiUrl: this.config.apiUrl as string,
       apiVersion: this.config.apiVersion,
-      publicKey,
-      clientUrl:
-        "https://cdn.jsdelivr.net/npm/clientjs@0.2.1/dist/client.min.js",
-    }));
+      publicKey: this.publicKey,
+    });
+    Logger.trace("Dodgeball constructor called").log();
 
-    // Call to /init endpoint to get list of integrations to run
-    // FUTURE: Replace this with dynamically generated files approach to remove first /init request to Dodgeball API
     setTimeout(async () => {
-      const initConfig = await getInitializationConfig({
-        url: this.config.apiUrl as string,
-        token: this.publicKey,
-        version: this.config.apiVersion,
-      });
+      const initConfigScript =
+        typeof document !== "undefined"
+          ? document.querySelector("script[data-dodgeball]")
+          : null;
+      let initConfig: IInitConfig;
+
+      if (initConfigScript) {
+        // Script tag found, use it to get init config
+        const waitForInitializationConfig = new Promise<IInitConfig>(
+          (resolve) => {
+            (initConfigScript as HTMLScriptElement).addEventListener(
+              "load",
+              () => {
+                if (typeof window !== "undefined") {
+                  if (!window.hasOwnProperty("_dodgeball_init_conf")) {
+                    resolve(window._dodgeball_init_conf);
+                  }
+                }
+                resolve({
+                  requestId: uuidv4(),
+                  libs: [],
+                });
+              }
+            );
+          }
+        );
+
+        initConfig = await waitForInitializationConfig;
+      } else {
+        // No script tag found, so we need to make the request to the API
+        initConfig = await getInitializationConfig({
+          url: this.config.apiUrl as string,
+          token: this.publicKey,
+          version: this.config.apiVersion,
+        });
+      }
 
       // Now that we have the initConfig, parse it and load the integrations
       if (initConfig && initConfig.libs) {
@@ -110,17 +148,8 @@ export class Dodgeball {
         IntegrationPurpose.IDENTIFY
       ) as unknown[] as IIdentifierIntegration[];
 
-      const sourceId = await identifier.identify(identifiers);
+      const sourceId = await this.identifier.identify(identifiers);
       this.sourceId = sourceId;
-      this.isIdentified = true;
-
-      if (this.onIdentified.length > 0) {
-        this.onIdentified.forEach((callback) => {
-          callback();
-        });
-
-        this.onIdentified = [];
-      }
 
       const observers = this.integrationLoader.filterIntegrationsByPurpose(
         this.integrations,
@@ -130,6 +159,16 @@ export class Dodgeball {
       observers.forEach((observer) => {
         observer.observe(sourceId);
       });
+
+      this.isSourced = true;
+
+      if (this.onSource.length > 0) {
+        this.onSource.forEach((callback) => {
+          callback();
+        });
+
+        this.onSource = [];
+      }
     }, 0);
   }
 
@@ -213,19 +252,6 @@ export class Dodgeball {
     }
   }
 
-  private defaultVerificationOptions() {
-    return {
-      maxDuration: 120000,
-      pollingInterval: POLL_INTERVAL_MS,
-      terminalStates: [
-        VerificationOutcome.COMPLETE,
-        VerificationOutcome.ERROR,
-        VerificationOutcome.APPROVED,
-        VerificationOutcome.DENIED,
-      ],
-    };
-  }
-
   private verifyTimeDelta(
     startDate: Date,
     options?: IVerificationInvocationOptions
@@ -259,12 +285,10 @@ export class Dodgeball {
         (numIterations == 0 || this.verifyTimeDelta(startTime, options))
       ) {
         if (numIterations > 0) {
-          // Sleep between iterations
           await new Promise((resolve) =>
             setTimeout(resolve, options.pollingInterval)
           );
 
-          // TODO: add retry logic
           try {
             let response = await queryVerification(
               this.config.apiUrl as string,
@@ -279,15 +303,10 @@ export class Dodgeball {
           }
         }
 
-        let verificationOutcome =
-          verification?.outcome ?? VerificationOutcome.APPROVED;
-        let stateName = verificationOutcome.valueOf();
-        isTerminal =
-          !verification ||
-          verificationOutcome === VerificationOutcome.COMPLETE ||
-          verificationOutcome === VerificationOutcome.ERROR ||
-          verificationOutcome === VerificationOutcome.APPROVED ||
-          verificationOutcome === VerificationOutcome.DENIED;
+        // const verificationStatus = verification?.status ?? VerificationStatus.COMPLETE;
+        // const verificationOutcome = verification?.outcome ?? VerificationOutcome.APPROVED;
+
+        isTerminal = !this.isRunning(verification);
         numIterations += 1;
 
         if (!isTerminal) {
@@ -304,62 +323,52 @@ export class Dodgeball {
           }
         }
 
-        switch (verificationOutcome) {
-          case VerificationOutcome.COMPLETE:
-            context.onError({
-              errorType: VerificationErrorType.COMPLETE_NO_DECISION,
-            });
-            break;
-
-          case VerificationOutcome.ERROR:
-            context.onError({
-              errorType: VerificationErrorType.SYSTEM,
-              details: verification.error,
-            });
-
-            break;
-
-          case VerificationOutcome.APPROVED:
-            // To match the existing logic.  Will be simplified
-            if (numIterations === 1) {
+        if (this.isAllowed(verification)) {
+          if (numIterations === 1) {
+            if (context.onApproved) {
               await context.onApproved(verification);
-            } else {
-              // TODO: Find a cleaner way to get MFA to dismiss
-              const executors: IExecutionIntegration[] =
-                this.integrationLoader.filterIntegrationsByPurpose(
-                  this.integrations,
-                  IntegrationPurpose.EXECUTE
-                ) as any[];
-              for (const executor of executors) {
-                await executor.cleanup();
-              }
+            }
+          } else {
+            const executors: IExecutionIntegration[] =
+              this.integrationLoader.filterIntegrationsByPurpose(
+                this.integrations,
+                IntegrationPurpose.EXECUTE
+              ) as any[];
 
+            for (const executor of executors) {
+              await executor.cleanup();
+            }
+
+            if (context.onVerified) {
               await context.onVerified(verification);
             }
-            break;
-
-          case VerificationOutcome.DENIED:
-            if (context.onDenied) {
-              await context.onDenied(verification);
-            }
-            break;
-
-          case VerificationOutcome.PENDING:
-          case VerificationOutcome.WAITING:
-            if (context.onPending) {
-              await context.onPending(verification);
-            }
-            break;
-
-          case VerificationOutcome.BLOCKED:
+          }
+        } else if (this.isDenied(verification)) {
+          if (context.onDenied) {
+            await context.onDenied(verification);
+          }
+        } else if (this.isRunning(verification)) {
+          if (verification.status === VerificationStatus.BLOCKED) {
             if (context.onBlocked) {
               await context.onBlocked(verification);
             }
-            break;
-
-          default:
-            Logger.info(`Unknown Verification Outcome: ${verificationOutcome}`);
-            break;
+          } else {
+            if (context.onPending) {
+              await context.onPending(verification);
+            }
+          }
+        } else if (this.isUndecided(verification)) {
+          if (context.onUndecided) {
+            await context.onUndecided(verification);
+          }
+        } else if (this.hasError(verification)) {
+          if (context.onError) {
+            await context.onError(systemError(verification.error));
+          }
+        } else {
+          Logger.error(
+            `Unknown Verification State:\nStatus:${verification.status}\nOutcome:${verification.outcome}`
+          ).log();
         }
       }
 
@@ -368,24 +377,44 @@ export class Dodgeball {
   }
 
   // Public methods
+  public identify(userId?: string) {
+    const updateObservers = () => {
+      const observers = this.integrationLoader.filterIntegrationsByPurpose(
+        this.integrations,
+        IntegrationPurpose.OBSERVE
+      ) as unknown[] as IObserverIntegration[];
+
+      observers.forEach((observer) => {
+        observer.observe(this.sourceId, userId);
+      });
+    };
+
+    if (this.isSourced) {
+      updateObservers.apply(this);
+    } else {
+      this.onSource.push(updateObservers.bind(this));
+    }
+
+    return;
+  }
 
   // This function may be called using async/await syntax or using a callback
-  public async getIdentity(onIdentity?: Function): Promise<string> {
+  public async getSource(onSource?: Function): Promise<string> {
     try {
       return new Promise((resolve) => {
-        if (this.isIdentified) {
-          if (onIdentity) {
-            onIdentity(this.sourceId);
+        if (this.isSourced) {
+          if (onSource) {
+            onSource(this.sourceId);
           }
           resolve(this.sourceId);
         } else {
-          if (onIdentity) {
-            this.onIdentified.push(() => {
-              onIdentity(this.sourceId);
+          if (onSource) {
+            this.onSource.push(() => {
+              onSource(this.sourceId);
               resolve(this.sourceId);
             });
           } else {
-            this.onIdentified.push(() => {
+            this.onSource.push(() => {
               resolve(this.sourceId);
             });
           }
@@ -396,13 +425,12 @@ export class Dodgeball {
     }
   }
 
-  // Takes a verification and calls the correct callback based on the outcome
   public handleVerification(
     verification: IVerification,
     context: IVerificationContext,
     options?: IHandleVerificationOptions
   ): void {
-    let fullOptions = this.defaultVerificationOptions();
+    let fullOptions = cloneDeep(DEFAULT_VERIFICATION_OPTIONS);
     fullOptions.maxDuration = options
       ? options.maxDuration
       : fullOptions.maxDuration;
@@ -411,53 +439,61 @@ export class Dodgeball {
   }
 
   public isRunning(verification: IVerification) {
-    return verification.status === VerificationStatus.PENDING;
+    return (
+      verification?.status === VerificationStatus.PENDING ||
+      verification?.status === VerificationStatus.BLOCKED
+    );
   }
 
   public isAllowed(verification: IVerification): boolean {
     return (
-      verification.status === VerificationStatus.COMPLETE &&
-      verification.outcome === VerificationOutcome.APPROVED
+      verification?.status === VerificationStatus.COMPLETE &&
+      verification?.outcome === VerificationOutcome.APPROVED
     );
   }
 
   public isDenied(verification: IVerification): boolean {
     return (
-      verification.status === VerificationStatus.COMPLETE &&
-      verification.outcome === VerificationOutcome.DENIED
+      verification?.status === VerificationStatus.COMPLETE &&
+      verification?.outcome === VerificationOutcome.DENIED
     );
   }
 
-  public isError(verification: IVerification): boolean {
+  public isUndecided(verification: IVerification): boolean {
     return (
-      verification.status === VerificationStatus.FAILED &&
-      verification.outcome === VerificationOutcome.ERROR
+      verification?.status === VerificationStatus.COMPLETE &&
+      verification?.outcome === VerificationOutcome.PENDING
+    );
+  }
+
+  public hasError(verification: IVerification): boolean {
+    return (
+      verification?.status === VerificationStatus.FAILED &&
+      verification?.outcome === VerificationOutcome.ERROR
     );
   }
 }
 
 // React hook for use with Dodgeball
-export function useDodgeball(): Dodgeball {
+export function useDodgeball(
+  publicKey?: string,
+  config?: IDodgeballConfig
+): Dodgeball {
   if (typeof window !== "undefined") {
     if (!window.hasOwnProperty("dodgeball")) {
-      const dodgeball = new Dodgeball();
+      const dodgeball = new Dodgeball(publicKey as string, config);
       window.dodgeball = dodgeball;
       return dodgeball;
     } else {
       return window.dodgeball;
     }
   }
-  return new Dodgeball();
-}
-
-if (typeof window !== "undefined") {
-  if (!window.hasOwnProperty("dodgeball")) {
-    window.dodgeball = new Dodgeball();
-  }
+  return new Dodgeball(publicKey as string, config);
 }
 
 declare global {
   interface Window {
     dodgeball: Dodgeball;
+    _dodgeball_init_conf: IInitConfig;
   }
 }

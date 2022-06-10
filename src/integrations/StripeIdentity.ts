@@ -1,4 +1,9 @@
-import {IVerificationContext, IntegrationName, IntegrationPurpose, systemError} from "../types";
+import {
+  IVerificationContext,
+  IntegrationName,
+  IntegrationPurpose,
+  systemError,
+} from "../types";
 
 import { IQualifierIntegration } from "../types";
 import Integration from "./Integration";
@@ -30,6 +35,10 @@ export default class StripeIdentityIntegration
     });
   }
 
+  public hasLoaded(): boolean {
+    return (window as any)?.hasOwnProperty("Stripe");
+  }
+
   public async configure() {
     this.stripeClient = (window as any).Stripe(this.config.publicKey);
   }
@@ -49,12 +58,14 @@ export default class StripeIdentityIntegration
         this.config.verificationSessionClientSecret
       );
 
-      if (result.error) {
+      if (result.error && context.onError) {
         context.onError(result.error.step);
       }
       return;
     } catch (error) {
-      context.onError(systemError(error as string));
+      if (context.onError) {
+        context.onError(systemError(error as string));
+      }
     }
   }
 }

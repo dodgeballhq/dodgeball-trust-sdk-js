@@ -1,7 +1,15 @@
+export enum LogLevel {
+  TRACE = "TRACE",
+  INFO = "INFO",
+  ERROR = "ERROR",
+  NONE = "NONE",
+}
+
 export enum Severity {
   TRACE = 0,
   INFO = 1,
   ERROR = 2,
+  NONE = 3,
 }
 
 export type LogEntryParameters = { [key: string]: any };
@@ -65,7 +73,7 @@ export class Logger {
   }
 
   public static trace(message: string, parameters?: LogEntryParameters) {
-    return new LogEntry(message, Severity.INFO).setParameters(parameters);
+    return new LogEntry(message, Severity.TRACE).setParameters(parameters);
   }
 
   public static error(message: string, error?: any) {
@@ -99,11 +107,7 @@ export class Logger {
 
       if (logEvent.parameters) {
         logResults = `${logResults}
-                parameters: ${
-                  logEvent.parameters
-                    ? JSON.stringify(logEvent.parameters, null, 2)
-                    : logEvent.parameters
-                }`;
+                parameters: ${logEvent.parameters}`;
       }
 
       console.log(logResults);

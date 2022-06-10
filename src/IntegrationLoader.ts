@@ -4,7 +4,6 @@ import FingerprintJSIntegration from "./integrations/Fingerprintjs";
 import Integration from "./integrations/Integration";
 import SiftIntegration from "./integrations/Sift";
 import StripeIdentityIntegration from "./integrations/StripeIdentity";
-import TwilioIntegration from "./integrations/Twilio";
 import MfaIntegration from "./integrations/Mfa";
 
 export default class IntegrationLoader {
@@ -55,7 +54,9 @@ export default class IntegrationLoader {
           requestId,
         });
 
-        await integration.load();
+        if (!integration.hasLoaded()) {
+          await integration.load();
+        }
         await integration.configure();
         this.loadedIntegrations[libConfig.name] = integration;
       }

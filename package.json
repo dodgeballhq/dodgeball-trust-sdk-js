@@ -1,6 +1,6 @@
 {
   "name": "@dodgeball/trust-sdk-client",
-  "version": "0.0.9",
+  "version": "0.0.12",
   "description": "Dodgeball Client SDK",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -24,7 +24,9 @@
   },
   "watch": {
     "build": {
-      "patterns": ["src"],
+      "patterns": [
+        "src"
+      ],
       "extensions": "ts",
       "ignore": [
         "dist",
@@ -33,7 +35,9 @@
       "quite": true
     },
     "link": {
-      "patterns": ["dist/types"],
+      "patterns": [
+        "dist/types"
+      ],
       "extensions": "ts",
       "ignore": [
         "src",
@@ -46,19 +50,30 @@
   "contributors": [
     "Patrick Teague"
   ],
+  "bugs": {
+    "url": "https://github.com/dodgeballhq/dodgeball-trust-sdk-js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dodgeballhq/dodgeball-trust-sdk-js"
+  },
   "license": "ISC",
   "files": [
     "dist"
   ],
   "dependencies": {
     "axios": "^0.24.0",
-    "js-cookie": "^3.0.1"
+    "js-cookie": "^3.0.1",
+    "lodash.clonedeep": "^4.5.0",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^13.1.0",
     "@commitlint/config-conventional": "^13.1.0",
     "@types/jest": "^27.0.1",
     "@types/js-cookie": "^3.0.1",
+    "@types/lodash.clonedeep": "^4.5.7",
+    "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "^4.31.1",
     "@typescript-eslint/parser": "^4.31.1",
     "eslint": "^7.32.0",
@@ -74,5 +89,25 @@
     "typescript": "^4.4.3",
     "webpack": "^5.52.1",
     "webpack-cli": "^4.8.0"
-  }
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.ts?$": "ts-jest"
+    },
+    "testRegex": "tests/.*|(\\.|/)(test|spec)\\.ts$",
+    "moduleFileExtensions": [
+      "js",
+      "ts"
+    ],
+    "coverageDirectory": "./coverage/",
+    "collectCoverage": true
+  },
+  "keywords": [
+    "dodgeball",
+    "security",
+    "trust and safety",
+    "risk",
+    "fraud prevention",
+    "api"
+  ]
 }

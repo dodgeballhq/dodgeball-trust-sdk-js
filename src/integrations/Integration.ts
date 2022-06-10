@@ -1,3 +1,4 @@
+import { Logger } from "../logger";
 import {
   IIntegrationConfig,
   IIntegrationProps,
@@ -23,8 +24,10 @@ export default abstract class Integration {
     this.dodgeballRequestId = requestId;
   }
 
+  public abstract hasLoaded(): boolean;
+
   public async load() {
-    console.log("Integration - About to load: ", this.name);
+    Logger.info(`Loading Integration: ${this.name}`).log();
     return await loadScript(this.url);
   }
 

@@ -1,6 +1,10 @@
-import { FingerprintSource, IFingerprint, IIdentifierIntegration } from './types';
+import {
+  FingerprintSource,
+  IFingerprint,
+  IIdentifierIntegration,
+} from "./types";
 
-import { loadScript } from './utilities';
+import { loadScript } from "./utilities";
 
 export interface IBrowserFingerprint {
   userAgent: string;
@@ -61,11 +65,12 @@ export interface IBrowserFingerprint {
 }
 
 export class Fingerprinter {
-
   clientUrl: string;
   client: any;
 
-  constructor (clientUrl: string) {
+  constructor(
+    clientUrl: string = "https://cdn.jsdelivr.net/npm/clientjs@0.2.1/dist/client.min.js"
+  ) {
     this.clientUrl = clientUrl;
   }
 
@@ -84,7 +89,7 @@ export class Fingerprinter {
     return;
   }
 
-  getBrowserFingerprint (): IBrowserFingerprint {
+  getBrowserFingerprint(): IBrowserFingerprint {
     if (this.client) {
       const browserFingerprint: IBrowserFingerprint = {
         userAgent: this.client.getUserAgent(),
@@ -141,7 +146,7 @@ export class Fingerprinter {
         systemLanguage: this.client.getSystemLanguage(),
         isCanvas: this.client.isCanvas(),
         canvasPrint: this.client.getCanvasPrint(),
-        fingerprint: this.client.getFingerprint()
+        fingerprint: this.client.getFingerprint(),
       };
 
       return browserFingerprint;
@@ -150,9 +155,11 @@ export class Fingerprinter {
     }
   }
 
-  public async gatherFingerprints (identifiers: IIdentifierIntegration[]): Promise<IFingerprint[]> {
+  public async gatherFingerprints(
+    identifiers: IIdentifierIntegration[]
+  ): Promise<IFingerprint[]> {
     const fingerprints: IFingerprint[] = [];
-    
+
     for (const identifier of identifiers) {
       try {
         const fingerprint: IFingerprint = await identifier.identify();
@@ -167,7 +174,7 @@ export class Fingerprinter {
     fingerprints.push({
       source: FingerprintSource.DODGEBALL,
       props: dbFingerprintProps,
-      hash: dbFingerprintProps.fingerprint
+      hash: dbFingerprintProps.fingerprint,
     });
 
     return fingerprints;

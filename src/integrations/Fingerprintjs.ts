@@ -1,4 +1,10 @@
-import { FingerprintSource, IFingerprint, IIdentifierIntegration, IntegrationName, IntegrationPurpose } from "../types";
+import {
+  FingerprintSource,
+  IFingerprint,
+  IIdentifierIntegration,
+  IntegrationName,
+  IntegrationPurpose,
+} from "../types";
 
 import Integration from "./Integration";
 
@@ -31,6 +37,10 @@ export default class FingerprintJSIntegration
       purposes: [IntegrationPurpose.IDENTIFY],
       requestId,
     });
+  }
+
+  public hasLoaded(): boolean {
+    return (window as any)?.hasOwnProperty("FingerprintJS");
   }
 
   public async configure(): Promise<void> {
