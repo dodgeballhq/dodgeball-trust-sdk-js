@@ -1,5 +1,5 @@
 import {
-  ApiVersion,
+  DodgeballApiVersion,
   DodgeballInvalidConfigError,
   DodgeballMissingConfigError,
   IDodgeballConfig,
@@ -59,12 +59,14 @@ export class Dodgeball {
     );
 
     if (
-      Object.keys(ApiVersion).indexOf(this.config.apiVersion as ApiVersion) < 0
+      Object.keys(DodgeballApiVersion).indexOf(
+        this.config.apiVersion as DodgeballApiVersion
+      ) < 0
     ) {
       throw new DodgeballInvalidConfigError(
         "config.apiVersion",
         this.config.apiVersion,
-        Object.keys(ApiVersion)
+        Object.keys(DodgeballApiVersion)
       );
     }
 
@@ -493,6 +495,7 @@ export function useDodgeball(
 
 declare global {
   interface Window {
+    Dodgeball: typeof Dodgeball;
     dodgeball: Dodgeball;
     _dodgeball_init_conf: IInitConfig;
   }

@@ -1,6 +1,6 @@
 import { IMfaConfig } from "./integrations/Mfa";
 import {
-  ApiVersion,
+  DodgeballApiVersion,
   IDodgeballVerifyResponse,
   IFingerprint,
   IInitConfig,

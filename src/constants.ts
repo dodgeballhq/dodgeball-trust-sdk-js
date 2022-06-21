@@ -1,7 +1,7 @@
 import {
   MfaConfigurableStyle,
   ConfigurableFontWeight,
-  ApiVersion,
+  DodgeballApiVersion,
   IDodgeballConfig,
   IVerificationInvocationOptions,
 } from "./types";
@@ -10,7 +10,7 @@ export const POLL_INTERVAL_MS = 3000;
 
 export const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",
-  apiVersion: ApiVersion.v1,
+  apiVersion: DodgeballApiVersion.v1,
 };
 
 export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {

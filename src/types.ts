@@ -1,6 +1,6 @@
 import { LogLevel } from "./logger";
 
-export enum ApiVersion {
+export enum DodgeballApiVersion {
   v1 = "v1",
 }
 
@@ -156,18 +156,18 @@ export interface IDodgeballApiError {
 export interface IDodgeballTrackResponse {
   success: boolean;
   errors: IDodgeballApiError[];
-  version: ApiVersion;
+  version: DodgeballApiVersion;
 }
 
 export interface IDodgeballVerifyResponse {
   success: boolean;
   errors: IDodgeballApiError[];
-  version: ApiVersion;
+  version: DodgeballApiVersion;
   verification: IVerification;
 }
 
 export interface IDodgeballConfig {
-  apiVersion: ApiVersion;
+  apiVersion: DodgeballApiVersion;
   apiUrl?: string; // For completely isolated (self-hosted) distributions, you will need to supply a URL to the API.
   logLevel?: LogLevel;
   disableCookies?: boolean;

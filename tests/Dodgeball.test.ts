@@ -1,7 +1,7 @@
 import { Dodgeball } from "../src/Dodgeball";
 import { LogLevel } from "../src/logger";
 import {
-  ApiVersion,
+  DodgeballApiVersion,
   DodgeballInvalidConfigError,
   DodgeballMissingConfigError,
   IVerification,
@@ -23,7 +23,7 @@ describe("constructor", () => {
 
   test("should accept a valid config object", () => {
     let dodgeball = new Dodgeball("test-public-key", {
-      apiVersion: ApiVersion.v1,
+      apiVersion: DodgeballApiVersion.v1,
       apiUrl: "https://api.dodgeballhq.com/",
       logLevel: LogLevel.ERROR,
     });
@@ -42,7 +42,7 @@ describe("constructor", () => {
   test("should fail with an invalid logLevel in the config object", () => {
     expect(() => {
       new Dodgeball("test-public-key", {
-        apiVersion: ApiVersion.v1,
+        apiVersion: DodgeballApiVersion.v1,
         logLevel: "invalid" as any,
       });
     }).toThrow(DodgeballInvalidConfigError);

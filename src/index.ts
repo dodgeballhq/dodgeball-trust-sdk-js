@@ -1,3 +1,10 @@
-import { Dodgeball, useDodgeball } from './Dodgeball'
+import { Dodgeball, useDodgeball } from "./Dodgeball";
+import { DodgeballApiVersion } from "./types";
 
-export { Dodgeball, useDodgeball }
+if (typeof window !== "undefined") {
+  if (!window.hasOwnProperty("Dodgeball")) {
+    window.Dodgeball = Dodgeball;
+  }
+}
+
+export { Dodgeball, useDodgeball, DodgeballApiVersion };
