@@ -132,7 +132,7 @@ export interface IIdentifierIntegration {
 }
 
 export interface IObserverIntegration {
-  observe(sourceId: string, userId?: string): void;
+  observe(sessionId: string, userId?: string): void;
 }
 
 export interface IExecutionIntegration {
@@ -171,6 +171,8 @@ export interface IDodgeballConfig {
   apiUrl?: string; // For completely isolated (self-hosted) distributions, you will need to supply a URL to the API.
   logLevel?: LogLevel;
   disableCookies?: boolean;
+  sessionId?: string; // If you have the sessionId available at the time of construction, you can pass it in here.
+  userId?: string; // If you have the userId available at the time of construction, you can pass it in here. Note that sessionId is required if you pass in userId.
 }
 
 export interface IHandleVerificationOptions {
