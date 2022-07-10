@@ -46,10 +46,10 @@ export default class SiftIntegration
     await this.configure();
   }
 
-  public observe(sourceId: string, userId?: string) {
-    // Once we have a sourceId, we can send it to Sift.
+  public observe(sessionId: string, userId?: string) {
+    // Once we have a sessionId, we can send it to Sift.
     const _user_id = userId;
-    const _session_id = sourceId;
+    const _session_id = sessionId;
 
     if (this.siftClient) {
       this.siftClient.push(["_setAccount", this.config.beaconKey]);
