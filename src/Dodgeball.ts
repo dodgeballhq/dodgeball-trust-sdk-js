@@ -19,7 +19,11 @@ import {
   systemError,
 } from "./types";
 
-import { DEFAULT_CONFIG, DEFAULT_VERIFICATION_OPTIONS } from "./constants";
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_VERIFICATION_OPTIONS,
+  MIN_TOKEN_REFRESH_INTERVAL_MS,
+} from "./constants";
 
 import { Logger, LogLevel, Severity } from "./logger";
 
@@ -43,9 +47,13 @@ export class Dodgeball {
   private seenSteps: { [key: string]: IVerificationStep } = {};
   private integrationLoader: IntegrationLoader;
   private integrations: Integration[] = [];
-  private isSourced: boolean = false;
+  private areIntegrationsLoaded: boolean = false;
+  private onIntegrationsLoaded: Function[] = [];
+  private isSourcing: boolean = false;
   private onSource: Function[] = [];
-  private sourceId: string = "";
+  private sourceToken: string = "";
+  private sourceTokenExpiry: number = 0;
+  private refreshSourceTokenHandle: any = null;
 
   constructor(publicKey: string, config?: IDodgeballConfig) {
     if (publicKey == null || publicKey?.length === 0) {
@@ -144,26 +152,73 @@ export class Dodgeball {
         }
       }
 
-      // Now that all of the integrations are loaded, use them
+      this.areIntegrationsLoaded = true;
+
+      if (this.onIntegrationsLoaded.length > 0) {
+        for (const callback of this.onIntegrationsLoaded) {
+          await callback();
+        }
+      }
+
+      const existingSource = this.identifier.getSource();
+      if (existingSource) {
+        this.sourceToken = existingSource.token;
+        this.sourceTokenExpiry = existingSource.expiry;
+        this.registerSourceTokenRefresh();
+      } else {
+        setTimeout(async () => {
+          await this.generateSourceToken();
+        }, 0);
+      }
+
+      if (this.config.sessionId) {
+        const observers = this.integrationLoader.filterIntegrationsByPurpose(
+          this.integrations,
+          IntegrationPurpose.OBSERVE
+        ) as unknown[] as IObserverIntegration[];
+
+        observers.forEach((observer) => {
+          observer.observe(this.config.sessionId as string, this.config.userId);
+        });
+      }
+    }, 0);
+  }
+
+  // Private methods
+  private isSourceTokenValid(): boolean {
+    return this.sourceTokenExpiry > Date.now();
+  }
+
+  private registerSourceTokenRefresh() {
+    if (this.refreshSourceTokenHandle) {
+      clearTimeout(this.refreshSourceTokenHandle);
+    }
+
+    let nextRefresh = this.sourceTokenExpiry - 60 * 1000 - Date.now();
+
+    if (nextRefresh < 0) {
+      nextRefresh = MIN_TOKEN_REFRESH_INTERVAL_MS;
+    }
+
+    this.refreshSourceTokenHandle = setTimeout(async () => {
+      await this.generateSourceToken();
+    }, nextRefresh);
+  }
+
+  private async generateSourceToken() {
+    const getSourceToken = async () => {
       const identifiers = this.integrationLoader.filterIntegrationsByPurpose(
         this.integrations,
         IntegrationPurpose.IDENTIFY
       ) as unknown[] as IIdentifierIntegration[];
 
-      const sourceId = await this.identifier.identify(identifiers);
-      this.sourceId = sourceId;
+      const newSource = await this.identifier.generateSourceToken(identifiers);
+      this.sourceToken = newSource.token;
+      this.sourceTokenExpiry = newSource.expiry;
 
-      const observers = this.integrationLoader.filterIntegrationsByPurpose(
-        this.integrations,
-        IntegrationPurpose.OBSERVE
-      ) as unknown[] as IObserverIntegration[];
+      this.registerSourceTokenRefresh();
 
-      observers.forEach((observer) => {
-        observer.observe(sourceId);
-      });
-
-      this.isSourced = true;
-
+      this.isSourcing = false;
       if (this.onSource.length > 0) {
         this.onSource.forEach((callback) => {
           callback();
@@ -171,10 +226,35 @@ export class Dodgeball {
 
         this.onSource = [];
       }
-    }, 0);
+    };
+
+    return new Promise(async (resolve, reject) => {
+      try {
+        if (!this.isSourcing) {
+          this.isSourcing = true;
+
+          if (this.areIntegrationsLoaded) {
+            const sourceToken = await getSourceToken();
+            resolve(sourceToken);
+          } else {
+            this.onIntegrationsLoaded.push(async () => {
+              const sourceToken = await getSourceToken();
+              resolve(sourceToken);
+            });
+          }
+        } else {
+          this.onSource.push(() => {
+            resolve(this.sourceToken);
+          });
+        }
+      } catch (e) {
+        Logger.error("Error Generating Source Token", e).log();
+        this.isSourcing = false;
+        reject(e);
+      }
+    });
   }
 
-  // Private methods
   private filterSeenSteps(steps: IVerificationStep[]): IVerificationStep[] {
     return steps.filter((step: IVerificationStep) => {
       return !this.seenSteps[step.id];
@@ -211,15 +291,18 @@ export class Dodgeball {
           integration: integration.name,
         });
 
-        if (integration.purposes.includes(IntegrationPurpose.OBSERVE)) {
+        if (
+          integration.purposes.includes(IntegrationPurpose.OBSERVE) &&
+          this.config.sessionId
+        ) {
           (integration as unknown as IObserverIntegration).observe(
-            this.sourceId
+            this.config.sessionId as string,
+            this.config.userId
           );
         }
 
         if (integration.purposes.includes(IntegrationPurpose.IDENTIFY)) {
           (integration as unknown as IIdentifierIntegration).identify();
-          // TODO: Do we need to resubmit the fingerprint?
         }
 
         if (integration.purposes.includes(IntegrationPurpose.QUALIFY)) {
@@ -227,6 +310,8 @@ export class Dodgeball {
         }
 
         if (integration.purposes.includes(IntegrationPurpose.EXECUTE)) {
+          const sourceToken = await this.getSourceToken();
+
           (integration as unknown as IExecutionIntegration).execute(
             step,
             context,
@@ -234,7 +319,7 @@ export class Dodgeball {
               return setVerificationResponse(
                 this.config.apiUrl as string,
                 this.publicKey,
-                this.sourceId,
+                sourceToken,
                 this.config.apiVersion,
                 verification,
                 step.verificationStepId,
@@ -379,47 +464,57 @@ export class Dodgeball {
   }
 
   // Public methods
-  public identify(userId?: string) {
-    const updateObservers = () => {
-      const observers = this.integrationLoader.filterIntegrationsByPurpose(
-        this.integrations,
-        IntegrationPurpose.OBSERVE
-      ) as unknown[] as IObserverIntegration[];
+  public track(sessionId: string, userId?: string) {
+    try {
+      this.config.sessionId = sessionId;
+      this.config.userId = userId;
 
-      observers.forEach((observer) => {
-        observer.observe(this.sourceId, userId);
-      });
-    };
+      if (sessionId) {
+        const observers = this.integrationLoader.filterIntegrationsByPurpose(
+          this.integrations,
+          IntegrationPurpose.OBSERVE
+        ) as unknown[] as IObserverIntegration[];
 
-    if (this.isSourced) {
-      updateObservers.apply(this);
-    } else {
-      this.onSource.push(updateObservers.bind(this));
+        observers.forEach((observer) => {
+          observer.observe(sessionId, userId);
+        });
+      }
+    } catch (e) {
+      Logger.error("Error Updating Observers", e).log();
     }
 
     return;
   }
 
   // This function may be called using async/await syntax or using a callback
-  public async getSource(onSource?: Function): Promise<string> {
+  public async getSourceToken(onSource?: Function): Promise<string> {
     try {
       return new Promise((resolve) => {
-        if (this.isSourced) {
+        if (this.isSourceTokenValid()) {
           if (onSource) {
-            onSource(this.sourceId);
+            onSource(this.sourceToken);
           }
-          resolve(this.sourceId);
+          resolve(this.sourceToken);
         } else {
           if (onSource) {
-            this.onSource.push(() => {
-              onSource(this.sourceId);
-              resolve(this.sourceId);
-            });
+            this.onSource.push(
+              (() => {
+                onSource(this.sourceToken);
+                resolve(this.sourceToken);
+              }).bind(this)
+            );
           } else {
-            this.onSource.push(() => {
-              resolve(this.sourceId);
-            });
+            this.onSource.push(
+              (() => {
+                resolve(this.sourceToken);
+              }).bind(this)
+            );
           }
+
+          (async () => {
+            // Get a new source token
+            await this.generateSourceToken();
+          })();
         }
       });
     } catch (error) {

@@ -1,7 +1,7 @@
 import Cookies from "js-cookie";
 import { Fingerprinter } from "./Fingerprinter";
 import { IIdentifierIntegration } from "./types";
-import { sendIdentifyDevice } from "./utilities";
+import { sendGetSourceToken } from "./utilities";
 
 export interface IIdentifierProps {
   cookiesEnabled: boolean;
@@ -33,45 +33,70 @@ export default class Identifier {
     this.fingerprinter = new Fingerprinter(clientUrl);
   }
 
-  public getSourceId(): string | undefined {
+  public getSource(): { token: string; expiry: number } | null {
+    let sourceStr = null;
+
     if (this.cookiesEnabled) {
-      return Cookies.get(this.cookieName);
+      sourceStr = Cookies.get(this.cookieName);
+    } else if (typeof window !== "undefined" && window.localStorage) {
+      sourceStr = window.localStorage.getItem(this.cookieName);
+    }
+
+    if (sourceStr != null) {
+      try {
+        const source = JSON.parse(sourceStr);
+
+        if (source.expiry > Date.now()) {
+          return source;
+        } else {
+          this.saveSource(null); // If the source is no longer valid, remove it
+          return null;
+        }
+      } catch (e) {
+        return null;
+      }
     } else {
-      return "";
+      return null;
     }
   }
 
-  public setSourceId(newSourceId: string) {
+  public saveSource(newSource: { token: string; expiry: number } | null) {
     if (this.cookiesEnabled) {
-      if (newSourceId != null && newSourceId !== "undefined") {
-        Cookies.set(this.cookieName, newSourceId);
+      if (newSource != null && newSource.token != null) {
+        Cookies.set(this.cookieName, JSON.stringify(newSource));
+      } else {
+        Cookies.remove(this.cookieName);
+      }
+    } else if (typeof window !== "undefined" && window.localStorage) {
+      if (newSource != null && newSource.token != null) {
+        window.localStorage.setItem(this.cookieName, JSON.stringify(newSource));
+      } else {
+        window.localStorage.removeItem(this.cookieName);
       }
     }
   }
 
-  public async identify(
-    identifiers: IIdentifierIntegration[]
-  ): Promise<string> {
+  public async generateSourceToken(identifiers: IIdentifierIntegration[]) {
     await this.fingerprinter.load();
 
     const fingerprints = await this.fingerprinter.gatherFingerprints(
       identifiers
     );
 
-    const sourceId = this.getSourceId(); // Attempt to grab this from a cookie if enabled
+    const source = this.getSource();
 
     // Submit the fingerprints to the API
-    const newSourceId = (await sendIdentifyDevice({
+    const newSource = await sendGetSourceToken({
       url: this.apiUrl as string,
       token: this.publicKey,
       version: this.apiVersion,
-      sourceId: sourceId,
+      sourceToken: source ? source.token : null,
       fingerprints: fingerprints,
-    })) as string;
+    });
 
-    // Set the sourceId cookie
-    this.setSourceId(newSourceId);
+    // Set the sourceToken cookies / localStorage
+    this.saveSource(newSource);
 
-    return newSourceId;
+    return newSource;
   }
 }

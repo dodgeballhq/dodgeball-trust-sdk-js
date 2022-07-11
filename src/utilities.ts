@@ -27,11 +27,11 @@ interface IGetInitializationConfigParams {
   token: string;
 }
 
-interface IIdentifyDeviceParams {
+interface IGetSourceTokenParams {
   url: string;
   version: string;
   token: string;
-  sourceId?: string;
+  sourceToken?: string | null; // A previous source token if present
   fingerprints: IFingerprint[];
 }
 
@@ -72,13 +72,16 @@ export const constructApiUrl = (url: string, version: string) => {
 };
 
 // function to construct api request headers
-export const constructApiHeaders = (token: string, sourceId?: string) => {
+export const constructApiHeaders = (
+  token: string,
+  sourceToken?: string | null
+) => {
   let headers: { [key: string]: string } = {
     "Dodgeball-Public-Key": `${token}`,
   };
 
-  if (sourceId) {
-    headers["Dodgeball-Source-Id"] = sourceId;
+  if (sourceToken) {
+    headers["Dodgeball-Source-Token"] = sourceToken;
   }
 
   return headers;
@@ -103,19 +106,18 @@ export const getInitializationConfig = async ({
   return response;
 };
 
-// function to identify the current device
-export const sendIdentifyDevice = async ({
+export const sendGetSourceToken = async ({
   url,
   token,
   version,
-  sourceId,
+  sourceToken,
   fingerprints,
-}: IIdentifyDeviceParams) => {
-  const headers = constructApiHeaders(token, sourceId);
+}: IGetSourceTokenParams) => {
+  const headers = constructApiHeaders(token, sourceToken);
   const apiUrl = constructApiUrl(url, version);
 
   const response = await makeRequest({
-    url: `${apiUrl}identify`,
+    url: `${apiUrl}sourceToken`,
     method: "POST",
     headers,
     data: {
@@ -123,7 +125,10 @@ export const sendIdentifyDevice = async ({
     },
   });
 
-  return response.id;
+  return {
+    token: response.token as string,
+    expiry: response.expiry as number, // ms since UNIX epoch
+  };
 };
 
 export const queryVerification = async (
@@ -148,16 +153,16 @@ export const queryVerification = async (
 export const setVerificationResponse = async (
   url: string,
   token: string,
-  sourceId: string,
+  sourceToken: string,
   version: string,
   verification: IVerification,
   verificationStepId: string,
   stepResponse: IStepResponse
 ): Promise<any> => {
   const headers = constructApiHeaders(token);
-  headers["dodgeball-source-id"] = sourceId;
-  headers["dodgeball-plugin-name"] = stepResponse.pluginName;
-  headers["dodgeball-method-name"] = stepResponse.methodName;
+  headers["Dodgeball-Source-Token"] = sourceToken;
+  headers["Dodgeball-Plugin-Name"] = stepResponse.pluginName;
+  headers["Dodgeball-Method-Name"] = stepResponse.methodName;
   const apiUrl = constructApiUrl(url, version);
 
   const response = await makeRequest({

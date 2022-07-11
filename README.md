@@ -44,16 +44,20 @@ You'll first need to initialize the SDK with your public API key which can be fo
 ```tsx
 import { useDodgeball } from "@dodgeball/trust-sdk-client";
 import { useEffect, useSelector } from "react";
-import { selectCurrentUser } from "./selectors";
+import { selectCurrentUser, selectCurrentSession } from "./selectors";
 
 export default function MyApp() {
   const dodgeball = useDodgeball('public-api-key...');
+  const currentSession = useSelector(selectCurrentSession);
   const currentUser = useSelector(selectCurrentUser);
 
   useEffect(() => {
-    // When you know the ID of the currently logged-in user, call identify
-    dodgeball.identify(currentUser?.id);
-  }, [currentUser?.id]);
+    /* 
+      When you know the ID of the currently logged-in user, 
+      pass it along with a session ID to dodgeball.track():
+    */
+    dodgeball.track(currentSession?.id, currentUser?.id);
+  }, [currentSession?.id, currentUser?.id]);
 
   return (
     <div>
@@ -84,11 +88,11 @@ export default function MyComponent() {
   }, [isOrderPlaced, isOrderDenied])
 
   const placeOrder = async (order, previousVerification = null) => {
-    const sourceId = await dodgeball.getSource();
+    const sourceToken = await dodgeball.getSourceToken();
 
     const endpointResponse = await axios.post("/api/orders", { order }, {
       headers: {
-        "x-dodgeball-source-id": sourceId, // Pass the source ID to your API
+        "x-dodgeball-source-token": sourceToken, // Pass the source token to your API
         "x-dodgeball-verification-id": previousVerificationId // If a previous verification was performed, pass it along to your API
       }
     });
@@ -158,26 +162,32 @@ import { Dodgeball } from "@dodgeball/trust-sdk-client";
 
 const dodgeball = new Dodgeball('public-api-key...'); // Do this once when your application first loads
 
-const sourceId = await dodgeball.getSource();
+const sourceToken = await dodgeball.getSourceToken();
 ```
 
-When you know the ID of the currently logged-in user, call `dodgeball.identify()`.
+When you know the ID of the currently logged-in user, call `dodgeball.track()`.
 
 ```js
-const onLogin = (currentUser) => {
-  dodgeball.identify(currentUser?.id);
+// As soon as you have a session ID, pass it to dodgeball.track()
+const onSession = (currentSession) => {
+  dodgeball.track(currentSession?.id);
+}
+
+// When you know the ID of the currently logged-in user, pass it along with a session ID to dodgeball.track()
+const onLogin = (currentSession, currentUser) => {
+  dodgeball.track(currentSession?.id, currentUser?.id);
 }
 ```
 
-Later, when you want to verify that a visitor is allowed to perform an action, call `dodgeball.getSource()` to get an identifier representing this device. Pass the returned `sourceId` to your API. Once your API returns a response, pass the `verification` to `dodgeball.handleVerification` along with a few callback functions:
+Later, when you want to verify that a visitor is allowed to perform an action, call `dodgeball.getSourceToken()` to get a token representing this device. Pass the returned `sourceToken` to your API. Once your API returns a response, pass the `verification` to `dodgeball.handleVerification` along with a few callback functions:
 
 ```js
 const placeOrder = async (order, previousVerificationId = null) => {
-  const sourceId = await dodgeball.getSource();
+  const sourceToken = await dodgeball.getSourceToken();
 
   const endpointResponse = await axios.post("/api/orders", { order }, {
     headers: {
-      "x-dodgeball-source-id": sourceId, // Pass the source ID to your API
+      "x-dodgeball-source-token": sourceToken, // Pass the source token to your API
       "x-dodgeball-verification-id": previousVerificationId // If a previous verification was performed, pass it along to your API
     }
   });
