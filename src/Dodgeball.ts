@@ -163,7 +163,7 @@ export class Dodgeball {
       const existingSource = this.identifier.getSource();
       if (existingSource) {
         this.sourceToken = existingSource.token;
-        this.sourceTokenExpiry = existingSource.expiry;
+        this.sourceTokenExpiry = existingSource.expiry ?? 0;
         this.registerSourceTokenRefresh();
       } else {
         setTimeout(async () => {
@@ -196,7 +196,7 @@ export class Dodgeball {
 
     let nextRefresh = this.sourceTokenExpiry - 60 * 1000 - Date.now();
 
-    if (nextRefresh < 0) {
+    if (isNaN(nextRefresh) || nextRefresh < MIN_TOKEN_REFRESH_INTERVAL_MS) {
       nextRefresh = MIN_TOKEN_REFRESH_INTERVAL_MS;
     }
 

@@ -7,7 +7,7 @@ import {
 } from "./types";
 
 export const POLL_INTERVAL_MS = 3000;
-export const MIN_TOKEN_REFRESH_INTERVAL_MS = 30 * 1000;
+export const MIN_TOKEN_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 export const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",
