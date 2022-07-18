@@ -48,7 +48,7 @@ export default class FingerprintJSIntegration
     try {
       return new Promise((resolve) => {
         const fpPromise = (window as any).FingerprintJS.load({
-          token: this.config.browserToken,
+          apiKey: this.config.browserToken,
           endpoint: this.config.endpoint,
           region: this.config.region,
           tlsEndpoint: this.config.tlsEndpoint,
