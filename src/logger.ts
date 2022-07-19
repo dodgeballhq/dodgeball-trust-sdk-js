@@ -88,29 +88,35 @@ export class Logger {
     if (error instanceof Error) {
       let transformed = error as Error;
       return `
-            message: transformed.message
-            stack: transformed.stack
-            name: transformed.name`;
+            message: ${transformed.message}
+            stack: ${transformed.stack}
+            name: ${transformed.name}`;
     } else {
-      return error.toString();
+      try {
+        return JSON.stringify(error.toString(), null, 2);
+      } catch (e) {
+        return error.toString();
+      }
     }
   }
 
   public static log(logEvent: ILogEntry) {
     if (logEvent.severity.valueOf() >= Logger.filterLevel.valueOf()) {
-      let logResults =
-        `
-            Severity: ${Severity[logEvent.severity]}
-            Date: ${logEvent.date}
-            Message: ${logEvent.message}
-            ` + this.formatError(logEvent.error);
+      let logResults = `Dodgeball SDK:
+        Severity: ${Severity[logEvent.severity]}
+        Date: ${logEvent.date}
+        Message: ${logEvent.message}`;
 
       if (logEvent.parameters) {
         logResults = `${logResults}
-                parameters: ${logEvent.parameters}`;
+          parameters: ${logEvent.parameters}`;
       }
 
-      console.log(logResults);
+      if (logEvent.severity === Severity.ERROR) {
+        console.log(logResults, logEvent.error);
+      } else {
+        console.log(logResults);
+      }
     }
   }
 }

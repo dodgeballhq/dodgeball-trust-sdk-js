@@ -5,11 +5,44 @@ import Integration from "./integrations/Integration";
 import SiftIntegration from "./integrations/Sift";
 import StripeIdentityIntegration from "./integrations/StripeIdentity";
 import MfaIntegration from "./integrations/Mfa";
+import { MAX_INTEGRATION_LOAD_TIMEOUT } from "./constants";
+import { Logger } from "./logger";
 
 export default class IntegrationLoader {
   loadedIntegrations: { [key: string]: Integration } = {};
 
   constructor() {}
+
+  public async loadIntegrations(
+    libs: ILibConfig[],
+    requestId: string
+  ): Promise<Integration[]> {
+    return new Promise((resolve, reject) => {
+      let integrationsMap: { [key: string]: Integration } = {};
+      let resolvedCount = 0;
+
+      const timeoutHandle = setTimeout(() => {
+        resolve(Object.values(integrationsMap));
+      }, MAX_INTEGRATION_LOAD_TIMEOUT);
+
+      const onIntegrationLoaded = (integration: Integration | null) => {
+        resolvedCount += 1;
+        if (integration !== null) {
+          integrationsMap[integration.name] = integration;
+        }
+
+        if (libs.length === resolvedCount) {
+          // All of the integrations have been loaded
+          clearTimeout(timeoutHandle);
+          resolve(Object.values(integrationsMap));
+        }
+      };
+
+      libs.forEach((libConfig) => {
+        this.loadIntegration(libConfig, requestId).then(onIntegrationLoaded);
+      });
+    });
+  }
 
   public async loadIntegration(
     libConfig: ILibConfig,
@@ -63,7 +96,7 @@ export default class IntegrationLoader {
 
       return integration;
     } catch (error) {
-      console.error(error);
+      Logger.error(`Error loading integration: ${libConfig.name}`, error).log();
       return null;
     }
   }
