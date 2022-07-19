@@ -140,15 +140,12 @@ export class Dodgeball {
 
       // Now that we have the initConfig, parse it and load the integrations
       if (initConfig && initConfig.libs) {
-        for (const libConfig of initConfig.libs) {
-          const integration = await this.integrationLoader.loadIntegration(
-            libConfig,
-            initConfig.requestId
-          );
-
-          if (integration) {
-            this.integrations.push(integration);
-          }
+        const integrations = await this.integrationLoader.loadIntegrations(
+          initConfig.libs,
+          initConfig.requestId
+        );
+        if (integrations) {
+          this.integrations = [...this.integrations, ...integrations];
         }
       }
 

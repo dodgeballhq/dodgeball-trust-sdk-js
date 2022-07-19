@@ -186,6 +186,9 @@ export const loadScript = async (url: string): Promise<void> => {
         script.onload = () => {
           resolve();
         };
+        script.onerror = (error) => {
+          reject(error);
+        };
         document.body.appendChild(script);
       }
     } catch (error) {
