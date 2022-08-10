@@ -3,6 +3,7 @@ import { ILibConfig, IntegrationName, IntegrationPurpose } from "./types";
 import FingerprintJSIntegration from "./integrations/Fingerprintjs";
 import Integration from "./integrations/Integration";
 import SiftIntegration from "./integrations/Sift";
+import KountIntegration from "./integrations/Kount";
 import StripeIdentityIntegration from "./integrations/StripeIdentity";
 import MfaIntegration from "./integrations/Mfa";
 import { MAX_INTEGRATION_LOAD_TIMEOUT } from "./constants";
@@ -13,10 +14,7 @@ export default class IntegrationLoader {
 
   constructor() {}
 
-  public async loadIntegrations(
-    libs: ILibConfig[],
-    requestId: string
-  ): Promise<Integration[]> {
+  public async loadIntegrations(libs: ILibConfig[], requestId: string): Promise<Integration[]> {
     return new Promise((resolve, reject) => {
       let integrationsMap: { [key: string]: Integration } = {};
       let resolvedCount = 0;
@@ -44,10 +42,7 @@ export default class IntegrationLoader {
     });
   }
 
-  public async loadIntegration(
-    libConfig: ILibConfig,
-    requestId: string
-  ): Promise<Integration | null> {
+  public async loadIntegration(libConfig: ILibConfig, requestId: string): Promise<Integration | null> {
     try {
       let integration: Integration | null = null;
 
@@ -67,16 +62,24 @@ export default class IntegrationLoader {
         case IntegrationName.FINGERPRINTJS:
           integrationClass = FingerprintJSIntegration;
           break;
+
         case IntegrationName.SIFT:
         case IntegrationName.SIFT_SCORE:
           integrationClass = SiftIntegration;
           break;
+
         case IntegrationName.STRIPE_IDENTITY:
           integrationClass = StripeIdentityIntegration;
           break;
+
         case IntegrationName.MFA:
           integrationClass = MfaIntegration;
           break;
+
+        case IntegrationName.KOUNT:
+          integrationClass = libConfig?.config["global.browserTracking"] === "true" ? KountIntegration : null;
+          break;
+
         default:
           console.warn(`Unknown integration: ${libConfig.name}`);
       }
@@ -101,12 +104,7 @@ export default class IntegrationLoader {
     }
   }
 
-  public filterIntegrationsByPurpose(
-    integrations: Integration[],
-    purpose: IntegrationPurpose
-  ): Integration[] {
-    return integrations.filter(
-      (integration) => integration.purposes.indexOf(purpose) > -1
-    );
+  public filterIntegrationsByPurpose(integrations: Integration[], purpose: IntegrationPurpose): Integration[] {
+    return integrations.filter((integration) => integration.purposes.indexOf(purpose) > -1);
   }
 }
