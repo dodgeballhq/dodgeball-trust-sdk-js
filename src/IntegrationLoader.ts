@@ -77,7 +77,7 @@ export default class IntegrationLoader {
           break;
 
         case IntegrationName.KOUNT:
-          integrationClass = libConfig?.config["global.browserTracking"] === "true" ? KountIntegration : null;
+          integrationClass = KountIntegration;
           break;
 
         default:
