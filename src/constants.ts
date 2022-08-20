@@ -7,7 +7,7 @@ import {
 } from "./types";
 
 export const MIN_TOKEN_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
-export const MAX_INTEGRATION_LOAD_TIMEOUT = 2 * 1000;
+export const MAX_INTEGRATION_LOAD_TIMEOUT = 10 * 1000; // 10 seconds
 
 export const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",

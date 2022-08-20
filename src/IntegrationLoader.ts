@@ -32,13 +32,6 @@ export default class IntegrationLoader {
       let integrationsMap: { [key: string]: Integration } = {};
       let resolvedCount = 0;
 
-      const timeoutHandle = setTimeout(() => {
-        Logger.error(
-          `Timeout loading integrations. Integrations took longer than ${MAX_INTEGRATION_LOAD_TIMEOUT}ms to load. Resolving successfully loaded integrations.`
-        ).log();
-        resolve(Object.values(integrationsMap));
-      }, MAX_INTEGRATION_LOAD_TIMEOUT);
-
       const onIntegrationLoaded = (integration: Integration | null) => {
         resolvedCount += 1;
         if (integration !== null) {
@@ -46,9 +39,7 @@ export default class IntegrationLoader {
         }
 
         if (libs.length === resolvedCount) {
-          // All of the integrations have been loaded
-          clearTimeout(timeoutHandle);
-          Logger.info(`All integrations successfully loaded.`).log();
+          // All of the integrations have been loaded or skipped
           resolve(Object.values(integrationsMap));
         }
       };
@@ -86,6 +77,18 @@ export default class IntegrationLoader {
         try {
           // Dynamically load the integration content
           if (libConfig.content != null) {
+            const timeoutHandle = setTimeout(
+              () => {
+                Logger.error(
+                  `Timeout loading integration. ${libConfig.name} took longer than ${MAX_INTEGRATION_LOAD_TIMEOUT}ms to load. Skipping.`
+                ).log();
+                resolve(null);
+              },
+              libConfig.loadTimeout
+                ? libConfig.loadTimeout
+                : MAX_INTEGRATION_LOAD_TIMEOUT
+            );
+
             const integrationScript = document.createElement("script");
 
             const onIntegrationContentReady = async () => {
@@ -115,6 +118,10 @@ export default class IntegrationLoader {
                         ).log();
                         await integration.load();
                       }
+
+                      // At this point, we know all the integration dependencies have been loaded
+                      clearTimeout(timeoutHandle);
+
                       Logger.info(
                         `Configuring integration: ${libConfig.name}`
                       ).log();

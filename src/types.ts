@@ -63,6 +63,7 @@ export interface ILibConfig {
     url?: string;
     text?: string;
   };
+  loadTimeout?: number;
 }
 
 export interface IVerificationStep extends ILibConfig {
