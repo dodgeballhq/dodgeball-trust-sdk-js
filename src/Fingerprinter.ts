@@ -1,8 +1,5 @@
-import {
-  FingerprintSource,
-  IFingerprint,
-  IIdentifierIntegration,
-} from "./types";
+import { Logger } from "./logger";
+import { IFingerprint, IIdentifierIntegration } from "./types";
 
 import { loadScript } from "./utilities";
 
@@ -165,14 +162,14 @@ export class Fingerprinter {
         const fingerprint: IFingerprint = await identifier.identify();
         fingerprints.push(fingerprint);
       } catch (error) {
-        console.error(error);
+        Logger.error("Error gathering fingerprints", error).log();
       }
     }
 
     const dbFingerprintProps = this.getBrowserFingerprint();
 
     fingerprints.push({
-      source: FingerprintSource.DODGEBALL,
+      source: "DODGEBALL",
       props: dbFingerprintProps,
       hash: dbFingerprintProps.fingerprint,
     });

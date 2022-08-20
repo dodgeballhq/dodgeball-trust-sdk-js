@@ -1,27 +1,35 @@
-import { ILibConfig, IntegrationName, IntegrationPurpose } from "./types";
+import { ILibConfig, IntegrationPurpose } from "./types";
 
-import FingerprintJSIntegration from "./integrations/Fingerprintjs";
-import Integration from "./integrations/Integration";
-import SiftIntegration from "./integrations/Sift";
-import KountIntegration from "./integrations/Kount";
-import StripeIdentityIntegration from "./integrations/StripeIdentity";
-import MfaIntegration from "./integrations/Mfa";
-import { MAX_INTEGRATION_LOAD_TIMEOUT } from "./constants";
+import Integration from "./Integration";
+import { MAX_INTEGRATION_LOAD_TIMEOUT, DEFAULT_REQUIRE_SRC } from "./constants";
 import { Logger } from "./logger";
 
 export default class IntegrationLoader {
+  isRequireLoaded: boolean = false;
+  onRequireLoaded: any[] = [];
   loadedIntegrations: { [key: string]: Integration } = {};
 
-  constructor() {}
+  constructor(requireSrc?: string) {
+    (async () => {
+      const requireScript = document.createElement("script");
+      requireScript.src = requireSrc ? requireSrc : DEFAULT_REQUIRE_SRC;
+      requireScript.onload = async () => {
+        this.isRequireLoaded = true;
+        for (const callback of this.onRequireLoaded) {
+          await callback();
+        }
+      };
+      document.body.appendChild(requireScript);
+    })();
+  }
 
-  public async loadIntegrations(libs: ILibConfig[], requestId: string): Promise<Integration[]> {
-    return new Promise((resolve, reject) => {
+  public async loadIntegrations(
+    libs: ILibConfig[],
+    requestId: string
+  ): Promise<Integration[]> {
+    return new Promise((resolve) => {
       let integrationsMap: { [key: string]: Integration } = {};
       let resolvedCount = 0;
-
-      const timeoutHandle = setTimeout(() => {
-        resolve(Object.values(integrationsMap));
-      }, MAX_INTEGRATION_LOAD_TIMEOUT);
 
       const onIntegrationLoaded = (integration: Integration | null) => {
         resolvedCount += 1;
@@ -30,8 +38,7 @@ export default class IntegrationLoader {
         }
 
         if (libs.length === resolvedCount) {
-          // All of the integrations have been loaded
-          clearTimeout(timeoutHandle);
+          // All of the integrations have been loaded or skipped
           resolve(Object.values(integrationsMap));
         }
       };
@@ -42,69 +49,134 @@ export default class IntegrationLoader {
     });
   }
 
-  public async loadIntegration(libConfig: ILibConfig, requestId: string): Promise<Integration | null> {
-    try {
-      let integration: Integration | null = null;
+  public async loadIntegration(
+    libConfig: ILibConfig,
+    requestId: string
+  ): Promise<Integration | null> {
+    let integration: Integration;
 
-      // Check if the integration has already been loaded.
-      // If so, return the existing integration.
-      if (this.loadedIntegrations.hasOwnProperty(libConfig.name)) {
+    // Check if the integration has already been loaded.
+    // If so, return the existing integration.
+    if (this.loadedIntegrations.hasOwnProperty(libConfig.name)) {
+      try {
+        Logger.info(`Integration already loaded: ${libConfig.name}`).log();
         integration = this.loadedIntegrations[libConfig.name];
+        Logger.info(`Reconfiguring integration: ${libConfig.name}`).log();
         await integration.reconfigure({ ...libConfig, requestId });
         return integration;
+      } catch (error) {
+        Logger.error(
+          `Error loading integration: ${libConfig.name}`,
+          error
+        ).log();
+        return null;
       }
+    } else {
+      const _loadIntegration = (resolve: any, reject: any) => {
+        try {
+          // Dynamically load the integration content
+          if (libConfig.content != null) {
+            const timeoutHandle = setTimeout(
+              () => {
+                Logger.error(
+                  `Timeout loading integration. ${libConfig.name} took longer than ${MAX_INTEGRATION_LOAD_TIMEOUT}ms to load. Skipping.`
+                ).log();
+                resolve(null);
+              },
+              libConfig.loadTimeout
+                ? libConfig.loadTimeout
+                : MAX_INTEGRATION_LOAD_TIMEOUT
+            );
 
-      let integrationClass = null;
+            const integrationScript = document.createElement("script");
 
-      // Based on the integration name passed in the libConfig
-      // instantiate the correct integration class
-      switch (libConfig.name) {
-        case IntegrationName.FINGERPRINTJS:
-          integrationClass = FingerprintJSIntegration;
-          break;
+            const onIntegrationContentReady = async () => {
+              (window as any).require(
+                [`integrations/${libConfig.name}`],
+                () => {
+                  let integrationClass: Integration;
 
-        case IntegrationName.SIFT:
-        case IntegrationName.SIFT_SCORE:
-          integrationClass = SiftIntegration;
-          break;
+                  integrationClass = (window as any)._dodgeball_integrations[
+                    libConfig.name
+                  ];
 
-        case IntegrationName.STRIPE_IDENTITY:
-          integrationClass = StripeIdentityIntegration;
-          break;
+                  if (integrationClass != null) {
+                    Logger.info(
+                      `Integration class found for: ${libConfig.name}`
+                    ).log();
 
-        case IntegrationName.MFA:
-          integrationClass = MfaIntegration;
-          break;
+                    integration = new (integrationClass as any)({
+                      ...libConfig,
+                      requestId,
+                    });
 
-        case IntegrationName.KOUNT:
-          integrationClass = KountIntegration;
-          break;
+                    (async () => {
+                      if (!integration.hasLoaded()) {
+                        Logger.info(
+                          `Loading integration dependencies: ${libConfig.name}`
+                        ).log();
+                        await integration.load();
+                      }
 
-        default:
-          console.warn(`Unknown integration: ${libConfig.name}`);
-      }
+                      // At this point, we know all the integration dependencies have been loaded
+                      clearTimeout(timeoutHandle);
 
-      if (integrationClass !== null) {
-        integration = new integrationClass({
-          ...libConfig,
-          requestId,
-        });
+                      Logger.info(
+                        `Configuring integration: ${libConfig.name}`
+                      ).log();
+                      await integration.configure();
+                      this.loadedIntegrations[libConfig.name] = integration;
+                      resolve(integration);
+                    })();
+                  } else {
+                    Logger.error(
+                      `No integration class found for: ${libConfig.name}`
+                    );
+                    resolve(integration);
+                  }
+                }
+              );
+            };
 
-        if (!integration.hasLoaded()) {
-          await integration.load();
+            if (libConfig.content.url) {
+              integrationScript.src = libConfig.content.url;
+              integrationScript.onload = onIntegrationContentReady;
+            } else {
+              integrationScript.innerHTML = libConfig.content.text as string;
+              setTimeout(onIntegrationContentReady, 2);
+            }
+            document.body.appendChild(integrationScript);
+          } else {
+            Logger.error(`No integration content: ${libConfig.name}`).log();
+            resolve(null);
+          }
+        } catch (error) {
+          Logger.error(
+            `Error loading integration: ${libConfig.name}`,
+            error
+          ).log();
+          resolve(null);
         }
-        await integration.configure();
-        this.loadedIntegrations[libConfig.name] = integration;
-      }
+      };
 
-      return integration;
-    } catch (error) {
-      Logger.error(`Error loading integration: ${libConfig.name}`, error).log();
-      return null;
+      return new Promise((resolve, reject) => {
+        if (this.isRequireLoaded) {
+          _loadIntegration(resolve, reject);
+        } else {
+          this.onRequireLoaded.push(() => {
+            _loadIntegration(resolve, reject);
+          });
+        }
+      });
     }
   }
 
-  public filterIntegrationsByPurpose(integrations: Integration[], purpose: IntegrationPurpose): Integration[] {
-    return integrations.filter((integration) => integration.purposes.indexOf(purpose) > -1);
+  public filterIntegrationsByPurpose(
+    integrations: Integration[],
+    purpose: IntegrationPurpose
+  ): Integration[] {
+    return integrations.filter(
+      (integration) => integration.purposes.indexOf(purpose) > -1
+    );
   }
 }

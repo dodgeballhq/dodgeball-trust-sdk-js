@@ -34,7 +34,7 @@ import {
 } from "./utilities";
 
 import Identifier from "./Identifier";
-import Integration from "./integrations/Integration";
+import Integration from "./Integration";
 import IntegrationLoader from "./IntegrationLoader";
 
 import cloneDeep from "lodash.clonedeep";
@@ -45,7 +45,7 @@ export class Dodgeball {
   private config: IDodgeballConfig;
   private identifier: Identifier;
   private seenSteps: { [key: string]: IVerificationStep } = {};
-  private integrationLoader: IntegrationLoader;
+  private integrationLoader: IntegrationLoader | null = null;
   private integrations: Integration[] = [];
   private areIntegrationsLoaded: boolean = false;
   private onIntegrationsLoaded: Function[] = [];
@@ -89,8 +89,6 @@ export class Dodgeball {
     }
 
     Logger.filterLevel = Severity[logLevel];
-
-    this.integrationLoader = new IntegrationLoader();
 
     this.identifier = new Identifier({
       cookiesEnabled: !this.config.disableCookies,
@@ -139,6 +137,8 @@ export class Dodgeball {
       }
 
       // Now that we have the initConfig, parse it and load the integrations
+      this.integrationLoader = new IntegrationLoader(initConfig.requireSrc);
+
       if (initConfig && initConfig.libs) {
         const integrations = await this.integrationLoader.loadIntegrations(
           initConfig.libs,
@@ -204,7 +204,9 @@ export class Dodgeball {
 
   private async generateSourceToken() {
     const getSourceToken = async () => {
-      const identifiers = this.integrationLoader.filterIntegrationsByPurpose(
+      const identifiers = (
+        this.integrationLoader as IntegrationLoader
+      ).filterIntegrationsByPurpose(
         this.integrations,
         IntegrationPurpose.IDENTIFY
       ) as unknown[] as IIdentifierIntegration[];
@@ -261,7 +263,8 @@ export class Dodgeball {
   private async handleVerificationStep(
     verification: IVerification,
     step: IVerificationStep,
-    context: IVerificationContext
+    context: IVerificationContext,
+    shouldContinuePolling: Function
   ): Promise<void> {
     // If we get here, the step is for us
     this.seenSteps[step.id] = step;
@@ -273,7 +276,9 @@ export class Dodgeball {
       }).log();
 
       try {
-        const integration = (await this.integrationLoader.loadIntegration(
+        const integration = (await (
+          this.integrationLoader as IntegrationLoader
+        ).loadIntegration(
           {
             ...step,
           },
@@ -296,14 +301,17 @@ export class Dodgeball {
             this.config.sessionId as string,
             this.config.userId
           );
+          shouldContinuePolling();
         }
 
         if (integration.purposes.includes(IntegrationPurpose.IDENTIFY)) {
           (integration as unknown as IIdentifierIntegration).identify();
+          shouldContinuePolling();
         }
 
         if (integration.purposes.includes(IntegrationPurpose.QUALIFY)) {
           (integration as unknown as IQualifierIntegration).qualify(context);
+          shouldContinuePolling();
         }
 
         if (integration.purposes.includes(IntegrationPurpose.EXECUTE)) {
@@ -313,6 +321,8 @@ export class Dodgeball {
             step,
             context,
             (response) => {
+              shouldContinuePolling();
+
               return setVerificationResponse(
                 this.config.apiUrl as string,
                 this.publicKey,
@@ -362,7 +372,15 @@ export class Dodgeball {
 
       let isTerminal = false;
       let numIterations = 0;
+      let isFirstIteration = true;
       let startTime = new Date();
+      let currentPollingInterval = options.pollingInterval;
+
+      const getRandomIntInclusive = (min: number, max: number) => {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1) + min);
+      };
 
       while (
         !isTerminal &&
@@ -370,8 +388,23 @@ export class Dodgeball {
       ) {
         if (numIterations > 0) {
           await new Promise((resolve) =>
-            setTimeout(resolve, options.pollingInterval)
+            setTimeout(resolve, currentPollingInterval)
           );
+
+          if (numIterations > options.numAtInitialPollingInterval) {
+            // Start exponential backoff + jitter. See https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/ for detailed explanation
+            let temp = Math.min(
+              options.maxPollingInterval,
+              options.pollingInterval *
+                2 **
+                  Math.max(
+                    0,
+                    numIterations - options.numAtInitialPollingInterval
+                  )
+            );
+            currentPollingInterval =
+              temp / 2 + getRandomIntInclusive(0, temp / 2);
+          }
 
           try {
             let response = await queryVerification(
@@ -387,9 +420,6 @@ export class Dodgeball {
           }
         }
 
-        // const verificationStatus = verification?.status ?? VerificationStatus.COMPLETE;
-        // const verificationOutcome = verification?.outcome ?? VerificationOutcome.APPROVED;
-
         isTerminal = !this.isRunning(verification);
         numIterations += 1;
 
@@ -398,26 +428,36 @@ export class Dodgeball {
             verification.nextSteps ?? []
           );
           while (verificationSteps && verificationSteps.length > 0) {
-            await this.handleVerificationStep(
-              verification,
-              verificationSteps[0],
-              context
-            );
-            verificationSteps = this.filterSeenSteps(verificationSteps);
+            // Wait until shouldContinuePolling is called by the handleVerificationStep
+            await new Promise(async (resolve) => {
+              await this.handleVerificationStep(
+                verification,
+                verificationSteps[0],
+                context,
+                resolve
+              );
+              verificationSteps = this.filterSeenSteps(verificationSteps);
+            });
+
+            // Reset pollingInterval, numIterations, and startTime
+            numIterations = 1;
+            currentPollingInterval = options.pollingInterval;
+            startTime = new Date();
           }
         }
 
         if (this.isAllowed(verification)) {
-          if (numIterations === 1) {
+          if (isFirstIteration) {
             if (context.onApproved) {
               await context.onApproved(verification);
             }
           } else {
-            const executors: IExecutionIntegration[] =
-              this.integrationLoader.filterIntegrationsByPurpose(
-                this.integrations,
-                IntegrationPurpose.EXECUTE
-              ) as any[];
+            const executors: IExecutionIntegration[] = (
+              this.integrationLoader as IntegrationLoader
+            ).filterIntegrationsByPurpose(
+              this.integrations,
+              IntegrationPurpose.EXECUTE
+            ) as any[];
 
             for (const executor of executors) {
               await executor.cleanup();
@@ -454,6 +494,8 @@ export class Dodgeball {
             `Unknown Verification State:\nStatus:${verification.status}\nOutcome:${verification.outcome}`
           ).log();
         }
+
+        isFirstIteration = false;
       }
 
       return;
@@ -467,14 +509,24 @@ export class Dodgeball {
       this.config.userId = userId;
 
       if (sessionId) {
-        const observers = this.integrationLoader.filterIntegrationsByPurpose(
-          this.integrations,
-          IntegrationPurpose.OBSERVE
-        ) as unknown[] as IObserverIntegration[];
+        const updateObservers = () => {
+          const observers = (
+            this.integrationLoader as IntegrationLoader
+          ).filterIntegrationsByPurpose(
+            this.integrations,
+            IntegrationPurpose.OBSERVE
+          ) as unknown[] as IObserverIntegration[];
 
-        observers.forEach((observer) => {
-          observer.observe(sessionId, userId);
-        });
+          observers.forEach((observer) => {
+            observer.observe(sessionId, userId);
+          });
+        };
+
+        if (this.areIntegrationsLoaded) {
+          updateObservers();
+        } else {
+          this.onIntegrationsLoaded.push(updateObservers);
+        }
       }
     } catch (e) {
       Logger.error("Error Updating Observers", e).log();
