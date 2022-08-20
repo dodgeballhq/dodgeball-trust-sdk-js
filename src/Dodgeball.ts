@@ -45,7 +45,7 @@ export class Dodgeball {
   private config: IDodgeballConfig;
   private identifier: Identifier;
   private seenSteps: { [key: string]: IVerificationStep } = {};
-  private integrationLoader: IntegrationLoader;
+  private integrationLoader: IntegrationLoader | null = null;
   private integrations: Integration[] = [];
   private areIntegrationsLoaded: boolean = false;
   private onIntegrationsLoaded: Function[] = [];
@@ -89,8 +89,6 @@ export class Dodgeball {
     }
 
     Logger.filterLevel = Severity[logLevel];
-
-    this.integrationLoader = new IntegrationLoader();
 
     this.identifier = new Identifier({
       cookiesEnabled: !this.config.disableCookies,
@@ -139,6 +137,8 @@ export class Dodgeball {
       }
 
       // Now that we have the initConfig, parse it and load the integrations
+      this.integrationLoader = new IntegrationLoader(initConfig.requireSrc);
+
       if (initConfig && initConfig.libs) {
         const integrations = await this.integrationLoader.loadIntegrations(
           initConfig.libs,
@@ -204,7 +204,9 @@ export class Dodgeball {
 
   private async generateSourceToken() {
     const getSourceToken = async () => {
-      const identifiers = this.integrationLoader.filterIntegrationsByPurpose(
+      const identifiers = (
+        this.integrationLoader as IntegrationLoader
+      ).filterIntegrationsByPurpose(
         this.integrations,
         IntegrationPurpose.IDENTIFY
       ) as unknown[] as IIdentifierIntegration[];
@@ -274,7 +276,9 @@ export class Dodgeball {
       }).log();
 
       try {
-        const integration = (await this.integrationLoader.loadIntegration(
+        const integration = (await (
+          this.integrationLoader as IntegrationLoader
+        ).loadIntegration(
           {
             ...step,
           },
@@ -448,11 +452,12 @@ export class Dodgeball {
               await context.onApproved(verification);
             }
           } else {
-            const executors: IExecutionIntegration[] =
-              this.integrationLoader.filterIntegrationsByPurpose(
-                this.integrations,
-                IntegrationPurpose.EXECUTE
-              ) as any[];
+            const executors: IExecutionIntegration[] = (
+              this.integrationLoader as IntegrationLoader
+            ).filterIntegrationsByPurpose(
+              this.integrations,
+              IntegrationPurpose.EXECUTE
+            ) as any[];
 
             for (const executor of executors) {
               await executor.cleanup();
@@ -504,14 +509,24 @@ export class Dodgeball {
       this.config.userId = userId;
 
       if (sessionId) {
-        const observers = this.integrationLoader.filterIntegrationsByPurpose(
-          this.integrations,
-          IntegrationPurpose.OBSERVE
-        ) as unknown[] as IObserverIntegration[];
+        const updateObservers = () => {
+          const observers = (
+            this.integrationLoader as IntegrationLoader
+          ).filterIntegrationsByPurpose(
+            this.integrations,
+            IntegrationPurpose.OBSERVE
+          ) as unknown[] as IObserverIntegration[];
 
-        observers.forEach((observer) => {
-          observer.observe(sessionId, userId);
-        });
+          observers.forEach((observer) => {
+            observer.observe(sessionId, userId);
+          });
+        };
+
+        if (this.areIntegrationsLoaded) {
+          updateObservers();
+        } else {
+          this.onIntegrationsLoaded.push(updateObservers);
+        }
       }
     } catch (e) {
       Logger.error("Error Updating Observers", e).log();

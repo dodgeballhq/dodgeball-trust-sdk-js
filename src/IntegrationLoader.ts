@@ -1,7 +1,7 @@
 import { ILibConfig, IntegrationPurpose } from "./types";
 
 import Integration from "./Integration";
-import { MAX_INTEGRATION_LOAD_TIMEOUT } from "./constants";
+import { MAX_INTEGRATION_LOAD_TIMEOUT, DEFAULT_REQUIRE_SRC } from "./constants";
 import { Logger } from "./logger";
 
 export default class IntegrationLoader {
@@ -9,11 +9,10 @@ export default class IntegrationLoader {
   onRequireLoaded: any[] = [];
   loadedIntegrations: { [key: string]: Integration } = {};
 
-  constructor() {
+  constructor(requireSrc?: string) {
     (async () => {
       const requireScript = document.createElement("script");
-      requireScript.src =
-        "https://requirejs.org/docs/release/2.3.6/minified/require.js";
+      requireScript.src = requireSrc ? requireSrc : DEFAULT_REQUIRE_SRC;
       requireScript.onload = async () => {
         this.isRequireLoaded = true;
         for (const callback of this.onRequireLoaded) {

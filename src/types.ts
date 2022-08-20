@@ -84,6 +84,7 @@ export interface IStepResponse {
 export interface IInitConfig {
   requestId: string;
   libs: ILibConfig[];
+  requireSrc?: string;
 }
 
 export interface IFingerprint {
