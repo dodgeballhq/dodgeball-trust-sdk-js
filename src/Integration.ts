@@ -1,35 +1,24 @@
-import { Logger } from "../logger";
 import {
   IIntegrationConfig,
   IIntegrationProps,
-  IntegrationName,
   IntegrationPurpose,
   IReconfigureIntegrationProps,
-} from "../types";
-
-import { loadScript } from "../utilities";
+} from "./types";
 
 export default abstract class Integration {
   config: IIntegrationConfig = {};
   url: string = "";
-  name: IntegrationName;
+  name: string;
   purposes: IntegrationPurpose[] = [];
   dodgeballRequestId: string = "";
 
   constructor({ config, url, name, purposes, requestId }: IIntegrationProps) {
-    this.config = config;
-    this.url = url;
     this.name = name;
-    this.purposes = purposes;
-    this.dodgeballRequestId = requestId;
   }
 
   public abstract hasLoaded(): boolean;
 
-  public async load() {
-    Logger.info(`Loading Integration: ${this.name}`).log();
-    return loadScript(this.url);
-  }
+  public async load() {}
 
   public abstract configure(): Promise<void>;
 
@@ -44,16 +33,5 @@ export default abstract class Integration {
     config,
     requestId,
     purposes = [],
-  }: IReconfigureIntegrationProps): void {
-    this.url = url;
-    this.config = config;
-    this.dodgeballRequestId = requestId;
-
-    if (purposes.length > 0) {
-      // If there were any purposes passed in, use them
-      this.purposes = purposes;
-    }
-
-    return;
-  }
+  }: IReconfigureIntegrationProps): void {}
 }

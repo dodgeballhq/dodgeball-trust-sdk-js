@@ -34,7 +34,7 @@ import {
 } from "./utilities";
 
 import Identifier from "./Identifier";
-import Integration from "./integrations/Integration";
+import Integration from "./Integration";
 import IntegrationLoader from "./IntegrationLoader";
 
 import cloneDeep from "lodash.clonedeep";

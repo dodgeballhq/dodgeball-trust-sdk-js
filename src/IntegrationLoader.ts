@@ -1,6 +1,6 @@
 import { ILibConfig, IntegrationPurpose } from "./types";
 
-import Integration from "./integrations/Integration";
+import Integration from "./Integration";
 import { MAX_INTEGRATION_LOAD_TIMEOUT } from "./constants";
 import { Logger } from "./logger";
 

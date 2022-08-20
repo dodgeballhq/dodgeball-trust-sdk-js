@@ -1,18 +1,11 @@
-import { IMfaConfig } from "./integrations/Mfa";
 import {
-  DodgeballApiVersion,
   IDodgeballVerifyResponse,
   IFingerprint,
   IInitConfig,
   IVerification,
-  IntegrationName,
-  VerificationOutcome,
-  VerificationStatus,
   IStepResponse,
-  MfaConfigurableStyle,
 } from "./types";
 import axios, { Method } from "axios";
-import { DEFAULT_STYLES } from "./constants";
 import { Logger } from "./logger";
 
 interface IRequestParams {
@@ -34,10 +27,6 @@ interface IGetSourceTokenParams {
   token: string;
   sourceToken?: string | null; // A previous source token if present
   fingerprints: IFingerprint[];
-}
-
-export interface IStyles {
-  [key: string]: string;
 }
 
 // function to wrap axios requests
@@ -196,99 +185,4 @@ export const loadScript = async (url: string): Promise<void> => {
       reject(error);
     }
   });
-};
-
-export type NodeCleanupMethod = () => Promise<void>;
-export const cleanupNodes = async (
-  parentNode: HTMLElement,
-  childNode: HTMLElement
-) => {
-  await parentNode.removeChild(childNode);
-};
-export const formatStyles = (styleObj: IStyles): string => {
-  let styles = "";
-
-  Object.keys(styleObj).forEach((styleName) => {
-    styles += `${styleName}:${styleObj[styleName]};`;
-  });
-
-  return styles;
-};
-
-export const setStyles = (el: HTMLElement, styleObj: IStyles): HTMLElement => {
-  el.style.cssText = formatStyles(styleObj);
-  return el;
-};
-
-export const createEl = (elType: string, styleObj: IStyles): HTMLElement => {
-  let el = document.createElement(elType);
-  setStyles(el, styleObj);
-  return el;
-};
-
-export const getMfaConfigurableStyle = (
-  configurableStyle: MfaConfigurableStyle,
-  config: IMfaConfig
-) => {
-  let style = DEFAULT_STYLES[configurableStyle];
-
-  if (
-    config &&
-    config.hasOwnProperty("customStyles") &&
-    config.customStyles?.hasOwnProperty(configurableStyle)
-  ) {
-    style = config.customStyles[configurableStyle] as string;
-  }
-
-  return style;
-};
-
-// Popup a Modal Dialog and give a reference to it
-export const popupModal = async (
-  modalAccessor: () => Promise<HTMLElement>,
-  formatter: (modal: HTMLElement, rootElement: HTMLElement) => void,
-  config: IMfaConfig
-) => {
-  Logger.trace("About to popup modal").log();
-  try {
-    let modal = await modalAccessor();
-    modal = setStyles(modal, {
-      display: "flex",
-      "justify-content": "center",
-      "align-items": "center",
-      position: "fixed",
-      top: "0px",
-      left: "0px",
-      right: "0px",
-      bottom: "0px",
-      "z-index": "9999",
-      "background-color": "rgba(0, 0, 0, 0.3)",
-    });
-
-    let innerModal = await document.createElement("div");
-    setStyles(innerModal, {
-      "justify-self": "center",
-      padding: "0px",
-      "background-color": getMfaConfigurableStyle(
-        MfaConfigurableStyle.MODAL_BACKGROUND_COLOR,
-        config
-      ),
-      "border-radius": getMfaConfigurableStyle(
-        MfaConfigurableStyle.MODAL_BORDER_RADIUS,
-        config
-      ),
-      "max-width": "600px",
-      "min-width": "600px",
-    });
-
-    if (formatter) {
-      formatter(innerModal, modal);
-    }
-
-    modal.appendChild(innerModal);
-    document.body.appendChild(modal);
-    Logger.trace("Successfully popped up modal").log();
-  } catch (error) {
-    Logger.error("Error, could not pop up model", error).log();
-  }
 };
