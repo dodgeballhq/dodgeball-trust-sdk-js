@@ -1,3 +1,4 @@
+import { Logger } from "./logger";
 import {
   FingerprintSource,
   IFingerprint,
@@ -165,7 +166,7 @@ export class Fingerprinter {
         const fingerprint: IFingerprint = await identifier.identify();
         fingerprints.push(fingerprint);
       } catch (error) {
-        console.error(error);
+        Logger.error("Error gathering fingerprints", error).log();
       }
     }
 

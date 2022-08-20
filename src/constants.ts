@@ -6,7 +6,6 @@ import {
   IVerificationInvocationOptions,
 } from "./types";
 
-export const POLL_INTERVAL_MS = 3000;
 export const MIN_TOKEN_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 export const MAX_INTEGRATION_LOAD_TIMEOUT = 2 * 1000;
 
@@ -16,8 +15,10 @@ export const DEFAULT_CONFIG: IDodgeballConfig = {
 };
 
 export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {
-  maxDuration: 120000,
-  pollingInterval: POLL_INTERVAL_MS,
+  maxDuration: 24 * 60 * 60 * 1000, // Wait 24 hrs before failing
+  pollingInterval: 100,
+  numAtInitialPollingInterval: 3, // How many times at the initial polling interval to try before using exponential back-off
+  maxPollingInterval: 10 * 60 * 1000, // 10 seconds
 };
 
 export const DEFAULT_STYLES: { [key in MfaConfigurableStyle]: string } = {

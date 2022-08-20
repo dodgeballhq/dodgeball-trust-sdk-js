@@ -13,6 +13,7 @@ import {
 } from "./types";
 import axios, { Method } from "axios";
 import { DEFAULT_STYLES } from "./constants";
+import { Logger } from "./logger";
 
 interface IRequestParams {
   url: string;
@@ -56,7 +57,7 @@ export const makeRequest = async ({
     });
     return response.data;
   } catch (error) {
-    console.log(error);
+    Logger.error("Request error: ", error).log();
     return error;
   }
 };
@@ -248,7 +249,7 @@ export const popupModal = async (
   formatter: (modal: HTMLElement, rootElement: HTMLElement) => void,
   config: IMfaConfig
 ) => {
-  console.log("About to popup");
+  Logger.trace("About to popup modal").log();
   try {
     let modal = await modalAccessor();
     modal = setStyles(modal, {
@@ -286,8 +287,8 @@ export const popupModal = async (
 
     modal.appendChild(innerModal);
     document.body.appendChild(modal);
-    console.log("Got through popup without failure");
+    Logger.trace("Successfully popped up modal").log();
   } catch (error) {
-    console.error("Could not pop up modal", error);
+    Logger.error("Error, could not pop up model", error).log();
   }
 };

@@ -59,6 +59,10 @@ export interface ILibConfig {
   url: string;
   config: any;
   method?: string;
+  content?: {
+    url?: string;
+    text?: string;
+  };
 }
 
 export interface IVerificationStep extends ILibConfig {
@@ -180,8 +184,11 @@ export interface IHandleVerificationOptions {
   maxDuration: number;
 }
 
-export interface IVerificationInvocationOptions extends IHandleVerificationOptions {
+export interface IVerificationInvocationOptions
+  extends IHandleVerificationOptions {
   pollingInterval: number;
+  numAtInitialPollingInterval: number;
+  maxPollingInterval: number;
 }
 
 export enum ConfigurableFontWeight {
@@ -270,7 +277,9 @@ export enum MfaConfigurableStyle {
 // Errors
 export class DodgeballMissingConfigError extends Error {
   constructor(configName: string, value: any) {
-    super(`Dodgeball SDK Error\nMissing configuration: ${configName}\nProvided Value: ${value}`);
+    super(
+      `Dodgeball SDK Error\nMissing configuration: ${configName}\nProvided Value: ${value}`
+    );
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -288,7 +297,9 @@ export class DodgeballInvalidConfigError extends Error {
 
 export class DodgeballMissingParameterError extends Error {
   constructor(parameter: string, value: any) {
-    super(`Dodgeball SDK Error\nMissing parameter: ${parameter}\nProvided value: ${value}`);
+    super(
+      `Dodgeball SDK Error\nMissing parameter: ${parameter}\nProvided value: ${value}`
+    );
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
