@@ -16,7 +16,7 @@ export const DEFAULT_CONFIG: IDodgeballConfig = {
 
 export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {
   maxDuration: 24 * 60 * 60 * 1000, // Wait 24 hrs before failing
-  pollingInterval: 100,
+  pollingInterval: 500,
   numAtInitialPollingInterval: 3, // How many times at the initial polling interval to try before using exponential back-off
   maxPollingInterval: 10 * 60 * 1000, // 10 seconds
 };

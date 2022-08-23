@@ -535,11 +535,31 @@ export class Dodgeball {
     return;
   }
 
+  private async attachIdentifierMetadata(
+    sourceToken: string
+  ): Promise<{ [key: string]: any }> {
+    try {
+      const identifiers = (
+        this.integrationLoader as IntegrationLoader
+      ).filterIntegrationsByPurpose(
+        this.integrations,
+        IntegrationPurpose.IDENTIFY
+      ) as unknown[] as IIdentifierIntegration[];
+
+      return this.identifier.saveSourceTokenMetadata(sourceToken, identifiers);
+    } catch (error) {
+      Logger.error("Error Attaching Metadata", error).log();
+      return Promise.reject(error);
+    }
+  }
+
   // This function may be called using async/await syntax or using a callback
   public async getSourceToken(onSource?: Function): Promise<string> {
     try {
-      return new Promise((resolve) => {
+      return new Promise(async (resolve) => {
         if (this.isSourceTokenValid()) {
+          await this.attachIdentifierMetadata(this.sourceToken);
+
           if (onSource) {
             onSource(this.sourceToken);
           }
@@ -547,14 +567,16 @@ export class Dodgeball {
         } else {
           if (onSource) {
             this.onSource.push(
-              (() => {
+              (async () => {
+                await this.attachIdentifierMetadata(this.sourceToken);
                 onSource(this.sourceToken);
                 resolve(this.sourceToken);
               }).bind(this)
             );
           } else {
             this.onSource.push(
-              (() => {
+              (async () => {
+                await this.attachIdentifierMetadata(this.sourceToken);
                 resolve(this.sourceToken);
               }).bind(this)
             );

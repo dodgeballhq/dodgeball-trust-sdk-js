@@ -122,6 +122,7 @@ export interface IIntegrationProps {
 
 export interface IIdentifierIntegration {
   identify(): Promise<IFingerprint>;
+  getMetadata(): Promise<{ name: string; metadata: any }>;
 }
 
 export interface IObserverIntegration {

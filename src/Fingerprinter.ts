@@ -160,7 +160,9 @@ export class Fingerprinter {
     for (const identifier of identifiers) {
       try {
         const fingerprint: IFingerprint = await identifier.identify();
-        fingerprints.push(fingerprint);
+        if (fingerprint) {
+          fingerprints.push(fingerprint);
+        }
       } catch (error) {
         Logger.error("Error gathering fingerprints", error).log();
       }

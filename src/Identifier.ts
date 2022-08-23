@@ -1,7 +1,7 @@
 import Cookies from "js-cookie";
 import { Fingerprinter } from "./Fingerprinter";
 import { IIdentifierIntegration } from "./types";
-import { sendGetSourceToken } from "./utilities";
+import { sendGetSourceToken, attachSourceTokenMetadata } from "./utilities";
 
 export interface IIdentifierProps {
   cookiesEnabled: boolean;
@@ -98,5 +98,32 @@ export default class Identifier {
     this.saveSource(newSource);
 
     return newSource;
+  }
+
+  public async saveSourceTokenMetadata(
+    sourceToken: string,
+    identifiers: IIdentifierIntegration[]
+  ): Promise<{ [key: string]: any }> {
+    let metadata: { [key: string]: any } = {};
+
+    // Loop through the identifiers and extract their metadata
+    if (identifiers) {
+      for (const identifier of identifiers) {
+        let integrationMetadata = await identifier.getMetadata();
+        metadata[integrationMetadata.name] = integrationMetadata.metadata;
+      }
+    }
+
+    if (Object.keys(metadata).length > 0) {
+      await attachSourceTokenMetadata({
+        url: this.apiUrl as string,
+        token: this.publicKey,
+        version: this.apiVersion,
+        sourceToken: sourceToken,
+        metadata,
+      });
+    }
+
+    return metadata;
   }
 }

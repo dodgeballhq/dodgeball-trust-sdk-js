@@ -29,6 +29,14 @@ interface IGetSourceTokenParams {
   fingerprints: IFingerprint[];
 }
 
+interface IAttachSourceTokenMetadata {
+  url: string;
+  version: string;
+  token: string;
+  sourceToken: string;
+  metadata: { [key: string]: any };
+}
+
 // function to wrap axios requests
 export const makeRequest = async ({
   url,
@@ -119,6 +127,28 @@ export const sendGetSourceToken = async ({
     token: response.token as string,
     expiry: response.expiry as number, // ms since UNIX epoch
   };
+};
+
+export const attachSourceTokenMetadata = async ({
+  url,
+  token,
+  version,
+  sourceToken,
+  metadata,
+}: IAttachSourceTokenMetadata) => {
+  const headers = constructApiHeaders(token, sourceToken);
+  const apiUrl = constructApiUrl(url, version);
+
+  const response = await makeRequest({
+    url: `${apiUrl}sourceToken/meta`,
+    method: "POST",
+    headers,
+    data: {
+      metadata,
+    },
+  });
+
+  return response;
 };
 
 export const queryVerification = async (
