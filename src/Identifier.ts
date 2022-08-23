@@ -110,7 +110,9 @@ export default class Identifier {
     if (identifiers) {
       for (const identifier of identifiers) {
         let integrationMetadata = await identifier.getMetadata();
-        metadata[integrationMetadata.name] = integrationMetadata.metadata;
+        if (Object.keys(integrationMetadata.metadata).length > 0) {
+          metadata[integrationMetadata.name] = integrationMetadata.metadata;
+        }
       }
     }
 
