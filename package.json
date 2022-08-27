@@ -1,6 +1,6 @@
 {
   "name": "@dodgeball/trust-sdk-client",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Dodgeball Client SDK",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",

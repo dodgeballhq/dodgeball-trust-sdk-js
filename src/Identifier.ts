@@ -1,7 +1,7 @@
 import Cookies from "js-cookie";
-import { Fingerprinter } from "./Fingerprinter";
-import { IIdentifierIntegration } from "./types";
+import { IIdentifierIntegration, IFingerprint } from "./types";
 import { sendGetSourceToken, attachSourceTokenMetadata } from "./utilities";
+import { Logger } from "./logger";
 
 export interface IIdentifierProps {
   cookiesEnabled: boolean;
@@ -17,7 +17,6 @@ export default class Identifier {
   apiVersion: string;
   cookieName: string = "_dodgeballId";
   cookiesEnabled: boolean = true;
-  fingerprinter: Fingerprinter;
 
   constructor({
     cookiesEnabled,
@@ -30,7 +29,6 @@ export default class Identifier {
     this.apiUrl = apiUrl;
     this.apiVersion = apiVersion;
     this.publicKey = publicKey;
-    this.fingerprinter = new Fingerprinter(clientUrl);
   }
 
   public getSource(): { token: string; expiry: number } | null {
@@ -76,12 +74,27 @@ export default class Identifier {
     }
   }
 
-  public async generateSourceToken(identifiers: IIdentifierIntegration[]) {
-    await this.fingerprinter.load();
+  public async gatherFingerprints(
+    identifiers: IIdentifierIntegration[]
+  ): Promise<IFingerprint[]> {
+    const fingerprints: IFingerprint[] = [];
 
-    const fingerprints = await this.fingerprinter.gatherFingerprints(
-      identifiers
-    );
+    for (const identifier of identifiers) {
+      try {
+        const fingerprint: IFingerprint = await identifier.identify();
+        if (fingerprint) {
+          fingerprints.push(fingerprint);
+        }
+      } catch (error) {
+        Logger.error("Error gathering fingerprints", error).log();
+      }
+    }
+
+    return fingerprints;
+  }
+
+  public async generateSourceToken(identifiers: IIdentifierIntegration[]) {
+    const fingerprints = await this.gatherFingerprints(identifiers);
 
     const source = this.getSource();
 
