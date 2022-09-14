@@ -22,6 +22,7 @@ import {
 import {
   DEFAULT_CONFIG,
   DEFAULT_VERIFICATION_OPTIONS,
+  DISABLED_SOURCE_TOKEN,
   MIN_TOKEN_REFRESH_INTERVAL_MS,
 } from "./constants";
 
@@ -98,87 +99,92 @@ export class Dodgeball {
     });
     Logger.trace("Dodgeball constructor called").log();
 
-    setTimeout(async () => {
-      const initConfigScript =
-        typeof document !== "undefined"
-          ? document.querySelector("script[data-dodgeball]")
-          : null;
-      let initConfig: IInitConfig;
+    if (this.config.isEnabled) {
+      setTimeout(async () => {
+        const initConfigScript =
+          typeof document !== "undefined"
+            ? document.querySelector("script[data-dodgeball]")
+            : null;
+        let initConfig: IInitConfig;
 
-      if (initConfigScript) {
-        // Script tag found, use it to get init config
-        const waitForInitializationConfig = new Promise<IInitConfig>(
-          (resolve) => {
-            (initConfigScript as HTMLScriptElement).addEventListener(
-              "load",
-              () => {
-                if (typeof window !== "undefined") {
-                  if (!window.hasOwnProperty("_dodgeball_init_conf")) {
-                    resolve(window._dodgeball_init_conf);
+        if (initConfigScript) {
+          // Script tag found, use it to get init config
+          const waitForInitializationConfig = new Promise<IInitConfig>(
+            (resolve) => {
+              (initConfigScript as HTMLScriptElement).addEventListener(
+                "load",
+                () => {
+                  if (typeof window !== "undefined") {
+                    if (!window.hasOwnProperty("_dodgeball_init_conf")) {
+                      resolve(window._dodgeball_init_conf);
+                    }
                   }
+                  resolve({
+                    requestId: uuidv4(),
+                    libs: [],
+                  });
                 }
-                resolve({
-                  requestId: uuidv4(),
-                  libs: [],
-                });
-              }
-            );
+              );
+            }
+          );
+
+          initConfig = await waitForInitializationConfig;
+        } else {
+          // No script tag found, so we need to make the request to the API
+          initConfig = await getInitializationConfig({
+            url: this.config.apiUrl as string,
+            token: this.publicKey,
+            version: this.config.apiVersion,
+          });
+        }
+
+        // Now that we have the initConfig, parse it and load the integrations
+        this.integrationLoader = new IntegrationLoader(initConfig.requireSrc);
+
+        if (initConfig && initConfig.libs) {
+          const integrations = await this.integrationLoader.loadIntegrations(
+            initConfig.libs,
+            initConfig.requestId
+          );
+          if (integrations) {
+            this.integrations = [...this.integrations, ...integrations];
           }
-        );
-
-        initConfig = await waitForInitializationConfig;
-      } else {
-        // No script tag found, so we need to make the request to the API
-        initConfig = await getInitializationConfig({
-          url: this.config.apiUrl as string,
-          token: this.publicKey,
-          version: this.config.apiVersion,
-        });
-      }
-
-      // Now that we have the initConfig, parse it and load the integrations
-      this.integrationLoader = new IntegrationLoader(initConfig.requireSrc);
-
-      if (initConfig && initConfig.libs) {
-        const integrations = await this.integrationLoader.loadIntegrations(
-          initConfig.libs,
-          initConfig.requestId
-        );
-        if (integrations) {
-          this.integrations = [...this.integrations, ...integrations];
         }
-      }
 
-      this.areIntegrationsLoaded = true;
+        this.areIntegrationsLoaded = true;
 
-      if (this.onIntegrationsLoaded.length > 0) {
-        for (const callback of this.onIntegrationsLoaded) {
-          await callback();
+        if (this.onIntegrationsLoaded.length > 0) {
+          for (const callback of this.onIntegrationsLoaded) {
+            await callback();
+          }
         }
-      }
 
-      const existingSource = this.identifier.getSource();
-      if (existingSource) {
-        this.sourceToken = existingSource.token;
-        this.sourceTokenExpiry = existingSource.expiry ?? 0;
-        this.registerSourceTokenRefresh();
-      } else {
-        setTimeout(async () => {
-          await this.generateSourceToken();
-        }, 0);
-      }
+        const existingSource = this.identifier.getSource();
+        if (existingSource) {
+          this.sourceToken = existingSource.token;
+          this.sourceTokenExpiry = existingSource.expiry ?? 0;
+          this.registerSourceTokenRefresh();
+        } else {
+          setTimeout(async () => {
+            await this.generateSourceToken();
+          }, 0);
+        }
 
-      if (this.config.sessionId) {
-        const observers = this.integrationLoader.filterIntegrationsByPurpose(
-          this.integrations,
-          IntegrationPurpose.OBSERVE
-        ) as unknown[] as IObserverIntegration[];
+        if (this.config.sessionId) {
+          const observers = this.integrationLoader.filterIntegrationsByPurpose(
+            this.integrations,
+            IntegrationPurpose.OBSERVE
+          ) as unknown[] as IObserverIntegration[];
 
-        observers.forEach((observer) => {
-          observer.observe(this.config.sessionId as string, this.config.userId);
-        });
-      }
-    }, 0);
+          observers.forEach((observer) => {
+            observer.observe(
+              this.config.sessionId as string,
+              this.config.userId
+            );
+          });
+        }
+      }, 0);
+    }
   }
 
   // Private methods
@@ -370,135 +376,141 @@ export class Dodgeball {
         verification: verification,
       }).log();
 
-      let isTerminal = false;
-      let numIterations = 0;
-      let isFirstIteration = true;
-      let startTime = new Date();
-      let currentPollingInterval = options.pollingInterval;
+      if (this.config.isEnabled) {
+        let isTerminal = false;
+        let numIterations = 0;
+        let isFirstIteration = true;
+        let startTime = new Date();
+        let currentPollingInterval = options.pollingInterval;
 
-      const getRandomIntInclusive = (min: number, max: number) => {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1) + min);
-      };
+        const getRandomIntInclusive = (min: number, max: number) => {
+          min = Math.ceil(min);
+          max = Math.floor(max);
+          return Math.floor(Math.random() * (max - min + 1) + min);
+        };
 
-      while (
-        !isTerminal &&
-        (numIterations == 0 || this.verifyTimeDelta(startTime, options))
-      ) {
-        if (numIterations > 0) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, currentPollingInterval)
-          );
-
-          if (numIterations > options.numAtInitialPollingInterval) {
-            // Start exponential backoff + jitter. See https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/ for detailed explanation
-            let temp = Math.min(
-              options.maxPollingInterval,
-              options.pollingInterval *
-                2 **
-                  Math.max(
-                    0,
-                    numIterations - options.numAtInitialPollingInterval
-                  )
-            );
-            currentPollingInterval =
-              temp / 2 + getRandomIntInclusive(0, temp / 2);
-          }
-
-          try {
-            let response = await queryVerification(
-              this.config.apiUrl as string,
-              this.publicKey,
-              this.config.apiVersion,
-              verification
+        while (
+          !isTerminal &&
+          (numIterations == 0 || this.verifyTimeDelta(startTime, options))
+        ) {
+          if (numIterations > 0) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, currentPollingInterval)
             );
 
-            verification = response.verification;
-          } catch (e) {
-            Logger.error("Error Querying Verification Status", e).log();
-          }
-        }
-
-        isTerminal = !this.isRunning(verification);
-        numIterations += 1;
-
-        if (!isTerminal) {
-          let verificationSteps = this.filterSeenSteps(
-            verification.nextSteps ?? []
-          );
-          while (verificationSteps && verificationSteps.length > 0) {
-            // Wait until shouldContinuePolling is called by the handleVerificationStep
-            await new Promise(async (resolve) => {
-              await this.handleVerificationStep(
-                verification,
-                verificationSteps[0],
-                context,
-                resolve
+            if (numIterations > options.numAtInitialPollingInterval) {
+              // Start exponential backoff + jitter. See https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/ for detailed explanation
+              let temp = Math.min(
+                options.maxPollingInterval,
+                options.pollingInterval *
+                  2 **
+                    Math.max(
+                      0,
+                      numIterations - options.numAtInitialPollingInterval
+                    )
               );
-              verificationSteps = this.filterSeenSteps(verificationSteps);
-            });
+              currentPollingInterval =
+                temp / 2 + getRandomIntInclusive(0, temp / 2);
+            }
 
-            // Reset pollingInterval, numIterations, and startTime
-            numIterations = 1;
-            currentPollingInterval = options.pollingInterval;
-            startTime = new Date();
+            try {
+              let response = await queryVerification(
+                this.config.apiUrl as string,
+                this.publicKey,
+                this.config.apiVersion,
+                verification
+              );
+
+              verification = response.verification;
+            } catch (e) {
+              Logger.error("Error Querying Verification Status", e).log();
+            }
           }
-        }
 
-        if (this.isAllowed(verification)) {
-          if (isFirstIteration) {
-            if (context.onApproved) {
-              await context.onApproved(verification);
+          isTerminal = !this.isRunning(verification);
+          numIterations += 1;
+
+          if (!isTerminal) {
+            let verificationSteps = this.filterSeenSteps(
+              verification.nextSteps ?? []
+            );
+            while (verificationSteps && verificationSteps.length > 0) {
+              // Wait until shouldContinuePolling is called by the handleVerificationStep
+              await new Promise(async (resolve) => {
+                await this.handleVerificationStep(
+                  verification,
+                  verificationSteps[0],
+                  context,
+                  resolve
+                );
+                verificationSteps = this.filterSeenSteps(verificationSteps);
+              });
+
+              // Reset pollingInterval, numIterations, and startTime
+              numIterations = 1;
+              currentPollingInterval = options.pollingInterval;
+              startTime = new Date();
+            }
+          }
+
+          if (this.isAllowed(verification)) {
+            if (isFirstIteration) {
+              if (context.onApproved) {
+                await context.onApproved(verification);
+              }
+            } else {
+              const executors: IExecutionIntegration[] = (
+                this.integrationLoader as IntegrationLoader
+              ).filterIntegrationsByPurpose(
+                this.integrations,
+                IntegrationPurpose.EXECUTE
+              ) as any[];
+
+              for (const executor of executors) {
+                await executor.cleanup();
+              }
+
+              if (context.onVerified) {
+                await context.onVerified(verification);
+              }
+            }
+          } else if (this.isDenied(verification)) {
+            if (context.onDenied) {
+              await context.onDenied(verification);
+            }
+          } else if (this.isRunning(verification)) {
+            if (verification.status === VerificationStatus.BLOCKED) {
+              if (context.onBlocked) {
+                await context.onBlocked(verification);
+              }
+            } else {
+              if (context.onPending) {
+                await context.onPending(verification);
+              }
+            }
+          } else if (this.isUndecided(verification)) {
+            if (context.onUndecided) {
+              await context.onUndecided(verification);
+            }
+          } else if (this.hasError(verification)) {
+            if (context.onError) {
+              await context.onError(systemError(verification.error));
             }
           } else {
-            const executors: IExecutionIntegration[] = (
-              this.integrationLoader as IntegrationLoader
-            ).filterIntegrationsByPurpose(
-              this.integrations,
-              IntegrationPurpose.EXECUTE
-            ) as any[];
+            Logger.error(
+              `Unknown Verification State:\nStatus:${verification.status}\nOutcome:${verification.outcome}`
+            ).log();
+          }
 
-            for (const executor of executors) {
-              await executor.cleanup();
-            }
-
-            if (context.onVerified) {
-              await context.onVerified(verification);
-            }
-          }
-        } else if (this.isDenied(verification)) {
-          if (context.onDenied) {
-            await context.onDenied(verification);
-          }
-        } else if (this.isRunning(verification)) {
-          if (verification.status === VerificationStatus.BLOCKED) {
-            if (context.onBlocked) {
-              await context.onBlocked(verification);
-            }
-          } else {
-            if (context.onPending) {
-              await context.onPending(verification);
-            }
-          }
-        } else if (this.isUndecided(verification)) {
-          if (context.onUndecided) {
-            await context.onUndecided(verification);
-          }
-        } else if (this.hasError(verification)) {
-          if (context.onError) {
-            await context.onError(systemError(verification.error));
-          }
-        } else {
-          Logger.error(
-            `Unknown Verification State:\nStatus:${verification.status}\nOutcome:${verification.outcome}`
-          ).log();
+          isFirstIteration = false;
         }
 
-        isFirstIteration = false;
+        return;
+      } else {
+        if (context.onApproved) {
+          await context.onApproved(verification);
+        }
       }
-
-      return;
     })();
   }
 
@@ -508,24 +520,26 @@ export class Dodgeball {
       this.config.sessionId = sessionId;
       this.config.userId = userId;
 
-      if (sessionId) {
-        const updateObservers = () => {
-          const observers = (
-            this.integrationLoader as IntegrationLoader
-          ).filterIntegrationsByPurpose(
-            this.integrations,
-            IntegrationPurpose.OBSERVE
-          ) as unknown[] as IObserverIntegration[];
+      if (this.config.isEnabled) {
+        if (sessionId) {
+          const updateObservers = () => {
+            const observers = (
+              this.integrationLoader as IntegrationLoader
+            ).filterIntegrationsByPurpose(
+              this.integrations,
+              IntegrationPurpose.OBSERVE
+            ) as unknown[] as IObserverIntegration[];
 
-          observers.forEach((observer) => {
-            observer.observe(sessionId, userId);
-          });
-        };
+            observers.forEach((observer) => {
+              observer.observe(sessionId, userId);
+            });
+          };
 
-        if (this.areIntegrationsLoaded) {
-          updateObservers();
-        } else {
-          this.onIntegrationsLoaded.push(updateObservers);
+          if (this.areIntegrationsLoaded) {
+            updateObservers();
+          } else {
+            this.onIntegrationsLoaded.push(updateObservers);
+          }
         }
       }
     } catch (e) {
@@ -557,35 +571,42 @@ export class Dodgeball {
   public async getSourceToken(onSource?: Function): Promise<string> {
     try {
       return new Promise(async (resolve) => {
-        if (this.isSourceTokenValid()) {
-          await this.attachIdentifierMetadata(this.sourceToken);
+        if (this.config.isEnabled) {
+          if (this.isSourceTokenValid()) {
+            await this.attachIdentifierMetadata(this.sourceToken);
 
-          if (onSource) {
-            onSource(this.sourceToken);
+            if (onSource) {
+              onSource(this.sourceToken);
+            }
+            resolve(this.sourceToken);
+          } else {
+            if (onSource) {
+              this.onSource.push(
+                (async () => {
+                  await this.attachIdentifierMetadata(this.sourceToken);
+                  onSource(this.sourceToken);
+                  resolve(this.sourceToken);
+                }).bind(this)
+              );
+            } else {
+              this.onSource.push(
+                (async () => {
+                  await this.attachIdentifierMetadata(this.sourceToken);
+                  resolve(this.sourceToken);
+                }).bind(this)
+              );
+            }
+
+            (async () => {
+              // Get a new source token
+              await this.generateSourceToken();
+            })();
           }
-          resolve(this.sourceToken);
         } else {
           if (onSource) {
-            this.onSource.push(
-              (async () => {
-                await this.attachIdentifierMetadata(this.sourceToken);
-                onSource(this.sourceToken);
-                resolve(this.sourceToken);
-              }).bind(this)
-            );
-          } else {
-            this.onSource.push(
-              (async () => {
-                await this.attachIdentifierMetadata(this.sourceToken);
-                resolve(this.sourceToken);
-              }).bind(this)
-            );
+            onSource(DISABLED_SOURCE_TOKEN);
           }
-
-          (async () => {
-            // Get a new source token
-            await this.generateSourceToken();
-          })();
+          resolve(DISABLED_SOURCE_TOKEN);
         }
       });
     } catch (error) {

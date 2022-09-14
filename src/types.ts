@@ -167,6 +167,7 @@ export interface IDodgeballConfig {
   disableCookies?: boolean;
   sessionId?: string; // If you have the sessionId available at the time of construction, you can pass it in here.
   userId?: string; // If you have the userId available at the time of construction, you can pass it in here. Note that sessionId is required if you pass in userId.
+  isEnabled?: boolean; // Defaults to true. Set to false to during local development / testing to skip making requests.
 }
 
 export interface IHandleVerificationOptions {

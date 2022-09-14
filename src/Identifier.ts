@@ -1,6 +1,10 @@
 import Cookies from "js-cookie";
 import { IIdentifierIntegration, IFingerprint } from "./types";
-import { sendGetSourceToken, attachSourceTokenMetadata } from "./utilities";
+import {
+  sendGetSourceToken,
+  attachSourceTokenMetadata,
+  getMd5,
+} from "./utilities";
 import { Logger } from "./logger";
 
 export interface IIdentifierProps {
@@ -29,6 +33,8 @@ export default class Identifier {
     this.apiUrl = apiUrl;
     this.apiVersion = apiVersion;
     this.publicKey = publicKey;
+
+    this.cookieName = `_db-${getMd5([this.publicKey, this.apiUrl])}`;
   }
 
   public getSource(): { token: string; expiry: number } | null {
@@ -61,7 +67,11 @@ export default class Identifier {
   public saveSource(newSource: { token: string; expiry: number } | null) {
     if (this.cookiesEnabled) {
       if (newSource != null && newSource.token != null) {
-        Cookies.set(this.cookieName, JSON.stringify(newSource));
+        Cookies.set(this.cookieName, JSON.stringify(newSource), {
+          expires: new Date(newSource.expiry),
+          sameSite: "strict",
+          secure: true,
+        });
       } else {
         Cookies.remove(this.cookieName);
       }

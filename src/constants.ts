@@ -12,6 +12,7 @@ export const DEFAULT_REQUIRE_SRC =
 export const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",
   apiVersion: DodgeballApiVersion.v1,
+  isEnabled: true,
 };
 
 export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {
@@ -20,3 +21,5 @@ export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {
   numAtInitialPollingInterval: 3, // How many times at the initial polling interval to try before using exponential back-off
   maxPollingInterval: 10 * 60 * 1000, // 10 seconds
 };
+
+export const DISABLED_SOURCE_TOKEN = "DISABLED_SOURCE_TOKEN";

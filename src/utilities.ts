@@ -7,6 +7,7 @@ import {
 } from "./types";
 import axios, { Method } from "axios";
 import { Logger } from "./logger";
+import { Md5 } from "./md5";
 
 interface IRequestParams {
   url: string;
@@ -215,4 +216,26 @@ export const loadScript = async (url: string): Promise<void> => {
       reject(error);
     }
   });
+};
+
+export const getMd5 = (str: string | string[]): string => {
+  const md5 = new Md5();
+
+  if (Array.isArray(str)) {
+    str.forEach((s) => {
+      if (s === null || s === undefined) {
+        md5.appendStr("");
+      } else {
+        md5.appendStr(s);
+      }
+    });
+  } else {
+    if (str === null || str === undefined) {
+      md5.appendStr("");
+    } else {
+      md5.appendStr(str);
+    }
+  }
+
+  return md5.end() as string;
 };
