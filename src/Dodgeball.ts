@@ -295,6 +295,8 @@ export class Dodgeball {
           this.integrations.push(integration);
         }
 
+        delete step.content;
+
         Logger.info("Handle Verification Step - Loaded integration", {
           integration: integration.name,
         });
@@ -326,18 +328,22 @@ export class Dodgeball {
           (integration as unknown as IExecutionIntegration).execute(
             step,
             context,
-            (response) => {
+            (response, sendResponse = true) => {
               shouldContinuePolling();
 
-              return setVerificationResponse(
-                this.config.apiUrl as string,
-                this.publicKey,
-                sourceToken,
-                this.config.apiVersion,
-                verification,
-                step.verificationStepId,
-                response
-              );
+              if (sendResponse) {
+                return setVerificationResponse(
+                  this.config.apiUrl as string,
+                  this.publicKey,
+                  sourceToken,
+                  this.config.apiVersion,
+                  verification,
+                  step.verificationStepId,
+                  response
+                );
+              } else {
+                return Promise.resolve(null);
+              }
             }
           );
         }
