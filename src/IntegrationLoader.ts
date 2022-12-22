@@ -1,15 +1,27 @@
-import { ILibConfig, IntegrationPurpose } from "./types";
+import {
+  IDodgeballParentContext,
+  ILibConfig,
+  IntegrationPurpose,
+} from "./types";
 
 import Integration from "./Integration";
 import { MAX_INTEGRATION_LOAD_TIMEOUT, DEFAULT_REQUIRE_SRC } from "./constants";
 import { Logger } from "./logger";
 
+export interface IIntegrationLoaderProps {
+  requireSrc?: string;
+  parentContext: IDodgeballParentContext;
+}
+
 export default class IntegrationLoader {
+  parentContext: IDodgeballParentContext;
   isRequireLoaded: boolean = false;
   onRequireLoaded: any[] = [];
   loadedIntegrations: { [key: string]: Integration } = {};
 
-  constructor(requireSrc?: string) {
+  constructor({ requireSrc, parentContext }: IIntegrationLoaderProps) {
+    this.parentContext = parentContext;
+
     (async () => {
       const requireScript = document.createElement("script");
       requireScript.src = requireSrc ? requireSrc : DEFAULT_REQUIRE_SRC;
@@ -108,6 +120,7 @@ export default class IntegrationLoader {
                     integration = new (integrationClass as any)({
                       ...libConfig,
                       requestId,
+                      parentContext: this.parentContext,
                     });
 
                     (async () => {

@@ -139,7 +139,13 @@ export class Dodgeball {
         }
 
         // Now that we have the initConfig, parse it and load the integrations
-        this.integrationLoader = new IntegrationLoader(initConfig.requireSrc);
+        this.integrationLoader = new IntegrationLoader({
+          requireSrc: initConfig.requireSrc,
+          parentContext: {
+            publicKey: this.publicKey,
+            config: this.config,
+          },
+        });
 
         if (initConfig && initConfig.libs) {
           const integrations = await this.integrationLoader.loadIntegrations(
@@ -177,10 +183,11 @@ export class Dodgeball {
           ) as unknown[] as IObserverIntegration[];
 
           observers.forEach((observer) => {
-            observer.observe(
-              this.config.sessionId as string,
-              this.config.userId
-            );
+            observer.observe({
+              sessionId: this.config.sessionId as string,
+              userId: this.config.userId,
+              sourceToken: this.sourceToken,
+            });
           });
         }
       }, 0);
@@ -305,10 +312,13 @@ export class Dodgeball {
           integration.purposes.includes(IntegrationPurpose.OBSERVE) &&
           this.config.sessionId
         ) {
-          (integration as unknown as IObserverIntegration).observe(
-            this.config.sessionId as string,
-            this.config.userId
-          );
+          const sourceToken = await this.getSourceToken();
+
+          (integration as unknown as IObserverIntegration).observe({
+            sessionId: this.config.sessionId as string,
+            userId: this.config.userId,
+            sourceToken: sourceToken,
+          });
           shouldContinuePolling();
         }
 
@@ -529,16 +539,20 @@ export class Dodgeball {
       if (this.config.isEnabled) {
         if (sessionId) {
           const updateObservers = () => {
-            const observers = (
-              this.integrationLoader as IntegrationLoader
-            ).filterIntegrationsByPurpose(
-              this.integrations,
-              IntegrationPurpose.OBSERVE
-            ) as unknown[] as IObserverIntegration[];
+            (async () => {
+              const sourceToken = await this.getSourceToken();
 
-            observers.forEach((observer) => {
-              observer.observe(sessionId, userId);
-            });
+              const observers = (
+                this.integrationLoader as IntegrationLoader
+              ).filterIntegrationsByPurpose(
+                this.integrations,
+                IntegrationPurpose.OBSERVE
+              ) as unknown[] as IObserverIntegration[];
+
+              observers.forEach((observer) => {
+                observer.observe({ sessionId, userId, sourceToken });
+              });
+            })();
           };
 
           if (this.areIntegrationsLoaded) {
