@@ -145,6 +145,7 @@ export class Dodgeball {
           parentContext: {
             publicKey: this.publicKey,
             config: this.config,
+            clearScreen: this.clearScreen.bind(this),
           },
         });
 
@@ -463,7 +464,7 @@ export class Dodgeball {
                   verification,
                   verificationSteps[0],
                   context,
-                  resolve
+                  resolve // This is shouldContinuePolling
                 );
                 verificationSteps = this.filterSeenSteps(verificationSteps);
               });
@@ -534,6 +535,21 @@ export class Dodgeball {
         }
       }
     })();
+  }
+
+  private clearScreen(): void {
+    const executors: IExecutionIntegration[] = (
+      this.integrationLoader as IntegrationLoader
+    ).filterIntegrationsByPurpose(
+      this.integrations,
+      IntegrationPurpose.EXECUTE
+    ) as any[];
+
+    for (const executor of executors) {
+      if (executor.hasOwnProperty("removeModal")) {
+        (executor as any).removeModal();
+      }
+    }
   }
 
   // Public methods

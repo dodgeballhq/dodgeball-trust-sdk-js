@@ -189,6 +189,7 @@ export interface IDodgeballConfig {
 export interface IDodgeballParentContext {
   publicKey: string;
   config: IDodgeballConfig;
+  clearScreen: () => void;
 }
 
 export interface IHandleVerificationOptions {
