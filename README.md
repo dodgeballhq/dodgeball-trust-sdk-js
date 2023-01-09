@@ -112,7 +112,7 @@ export default function MyComponent() {
       },
       onError: async (error) => {
         // If there was an error performing the verification, display it
-        setError(error);
+        setError(error); // Usage Note: If the user cancels the verification, error.errorType = "CANCELLED"
         setIsPlacingOrder(false);
       }
     });
@@ -207,7 +207,7 @@ const placeOrder = async (order, previousVerificationId = null) => {
     },
     onError: async (error) => {
       // If there was an error performing the verification, display it
-      setError(error);
+      setError(error); // Usage Note: If the user cancels the verification, error.errorType = "CANCELLED"
       setIsPlacingOrder(false);
     }
   });

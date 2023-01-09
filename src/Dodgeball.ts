@@ -17,6 +17,7 @@ import {
   VerificationOutcome,
   VerificationStatus,
   systemError,
+  cancelError,
 } from "./types";
 
 import {
@@ -354,6 +355,11 @@ export class Dodgeball {
               } else {
                 return Promise.resolve(null);
               }
+            },
+            async () => {
+              if (context.onError) {
+                await context.onError(cancelError());
+              }
             }
           );
         }
@@ -512,7 +518,7 @@ export class Dodgeball {
             if (context.onError) {
               await context.onError(systemError(verification.error));
             }
-          } else {
+          } else if (!this.isCancelled(verification)) {
             Logger.error(
               `Unknown Verification State:\nStatus:${verification.status}\nOutcome:${verification.outcome}`
             ).log();
@@ -672,6 +678,13 @@ export class Dodgeball {
     return (
       verification?.status === VerificationStatus.COMPLETE &&
       verification?.outcome === VerificationOutcome.PENDING
+    );
+  }
+
+  public isCancelled(verification: IVerification): boolean {
+    return (
+      verification?.status === VerificationStatus.COMPLETE &&
+      verification?.outcome === VerificationOutcome.ERROR
     );
   }
 

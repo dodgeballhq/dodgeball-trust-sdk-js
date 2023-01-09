@@ -30,6 +30,7 @@ export interface IVerification {
 export enum VerificationErrorType {
   SYSTEM = "SYSTEM",
   TIMEOUT = "TIMEOUT",
+  CANCELLED = "CANCELLED",
 }
 
 export interface IVerificationError {
@@ -41,6 +42,13 @@ export const systemError = (errorText?: string) => {
   return {
     errorType: VerificationErrorType.SYSTEM,
     details: errorText,
+  };
+};
+
+export const cancelError = () => {
+  return {
+    errorType: VerificationErrorType.CANCELLED,
+    details: "The user cancelled their request.",
   };
 };
 
@@ -139,7 +147,8 @@ export interface IExecutionIntegration {
   execute(
     step: IVerificationStep,
     context: IVerificationContext,
-    responseCallback: (stepResponse: IStepResponse) => Promise<void>
+    responseCallback: (stepResponse: IStepResponse) => Promise<void>,
+    onCancel: () => Promise<void>
   ): Promise<any>;
   cleanup(): Promise<void>;
 }
