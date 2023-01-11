@@ -546,8 +546,8 @@ export class Dodgeball {
     ) as any[];
 
     for (const executor of executors) {
-      if (executor.hasOwnProperty("removeModal")) {
-        (executor as any).removeModal();
+      if (Object.getPrototypeOf(executor).constructor.removeModal) {
+        Object.getPrototypeOf(executor).constructor.removeModal();
       }
     }
   }
