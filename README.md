@@ -213,3 +213,68 @@ const placeOrder = async (order, previousVerificationId = null) => {
   });
 }
 ```
+
+### Loading via CDN
+
+The Dodgeball Client SDK is also available via CDN at this url: 
+```
+https://www.unpkg.com/@dodgeball/trust-sdk-client@latest/dist/umd/index.js
+```
+
+To load this in an HTML document:
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <title>My Application</title>
+    <script type="text/javascript" async defer src="https://www.unpkg.com/@dodgeball/trust-sdk-client@latest/dist/umd/index.js" onload="onDodgeballLoaded()"></script>
+    <script>
+      async function onDodgeballLoaded() {
+        const dodgeball = new Dodgeball('public-api-key...'); // Do this once when your application first loads
+
+        // At some point later, when you are ready to call your API:
+        const placeOrder = async (order, previousVerificationId = null) => {
+          const sourceToken = await dodgeball.getSourceToken();
+
+          const endpointResponse = await axios.post("/api/orders", { order }, {
+            headers: {
+              "x-dodgeball-source-token": sourceToken, // Pass the source token to your API
+              "x-dodgeball-verification-id": previousVerificationId // If a previous verification was performed, pass it along to your API
+            }
+          });
+
+          dodgeball.handleVerification(endpointResponse.data.verification, {
+            onVerified: async (verification) => {
+              // If an additional check was performed and the request is approved, simply pass the verification ID in to your API
+              await placeOrder(order, verification.id);
+            },
+            onApproved: async () => {
+              // If no additional check was required, update the view to show that the order was placed
+              setIsOrderPlaced(true);
+            },
+            onDenied: async (verification) => {
+              // If the action was denied, update the view to show the rejection
+              setIsOrderDenied(true);
+            },
+            onError: async (error) => {
+              // If there was an error performing the verification, display it
+              setError(error); // Usage Note: If the user cancels the verification, error.errorType = "CANCELLED"
+              setIsPlacingOrder(false);
+            }
+          });
+        }
+
+        await placeOrder({
+          cart: [],
+          paymentMethod: {},
+          // ... any other data relevant to your API
+        });
+      }
+    </script>
+  </head>
+  <body>
+  Your application's content...
+  </body>
+</html>
+```
