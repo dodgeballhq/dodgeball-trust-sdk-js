@@ -139,58 +139,66 @@ export class Dodgeball {
           });
         }
 
-        // Now that we have the initConfig, parse it and load the integrations
-        this.integrationLoader = new IntegrationLoader({
-          requireSrc: initConfig.requireSrc,
-          parentContext: {
-            publicKey: this.publicKey,
-            config: this.config,
-            clearScreen: this.clearScreen.bind(this),
-          },
-        });
-
-        if (initConfig && initConfig.libs) {
-          const integrations = await this.integrationLoader.loadIntegrations(
-            initConfig.libs,
-            initConfig.requestId
-          );
-          if (integrations) {
-            this.integrations = [...this.integrations, ...integrations];
-          }
-        }
-
-        this.areIntegrationsLoaded = true;
-
-        if (this.onIntegrationsLoaded.length > 0) {
-          for (const callback of this.onIntegrationsLoaded) {
-            await callback();
-          }
-        }
-
-        const existingSource = this.identifier.getSource();
-        if (existingSource) {
-          this.sourceToken = existingSource.token;
-          this.sourceTokenExpiry = existingSource.expiry ?? 0;
-          this.registerSourceTokenRefresh();
-        } else {
-          setTimeout(async () => {
-            await this.generateSourceToken();
-          }, 0);
-        }
-
-        if (this.config.sessionId) {
-          const observers = this.integrationLoader.filterIntegrationsByPurpose(
-            this.integrations,
-            IntegrationPurpose.OBSERVE
-          ) as unknown[] as IObserverIntegration[];
-
-          observers.forEach((observer) => {
-            observer.observe({
-              sessionId: this.config.sessionId as string,
-              userId: this.config.userId,
-              sourceToken: this.sourceToken,
-            });
+        if (initConfig?.hasOwnProperty("libs")) {
+          // Now that we have the initConfig, parse it and load the integrations
+          this.integrationLoader = new IntegrationLoader({
+            requireSrc: initConfig.requireSrc,
+            parentContext: {
+              publicKey: this.publicKey,
+              config: this.config,
+              clearScreen: this.clearScreen.bind(this),
+            },
           });
+
+          if (initConfig && initConfig.libs) {
+            const integrations = await this.integrationLoader.loadIntegrations(
+              initConfig.libs,
+              initConfig.requestId
+            );
+            if (integrations) {
+              this.integrations = [...this.integrations, ...integrations];
+            }
+          }
+
+          this.areIntegrationsLoaded = true;
+
+          if (this.onIntegrationsLoaded.length > 0) {
+            for (const callback of this.onIntegrationsLoaded) {
+              await callback();
+            }
+          }
+
+          const existingSource = this.identifier.getSource();
+          if (existingSource) {
+            this.sourceToken = existingSource.token;
+            this.sourceTokenExpiry = existingSource.expiry ?? 0;
+            this.registerSourceTokenRefresh();
+          } else {
+            setTimeout(async () => {
+              await this.generateSourceToken();
+            }, 0);
+          }
+
+          if (this.config.sessionId) {
+            const observers =
+              this.integrationLoader.filterIntegrationsByPurpose(
+                this.integrations,
+                IntegrationPurpose.OBSERVE
+              ) as unknown[] as IObserverIntegration[];
+
+            observers.forEach((observer) => {
+              observer.observe({
+                sessionId: this.config.sessionId as string,
+                userId: this.config.userId,
+                sourceToken: this.sourceToken,
+              });
+            });
+          }
+        } else {
+          Logger.error(
+            "Error Loading Initialization Configuration.",
+            initConfig
+          ).log();
         }
       }, 0);
     }
@@ -446,7 +454,7 @@ export class Dodgeball {
 
               verification = response.verification;
             } catch (e) {
-              Logger.error("Error Querying Verification Status", e).log();
+              Logger.error("Error Querying Verification Status.", e).log();
             }
           }
 
@@ -520,9 +528,16 @@ export class Dodgeball {
               await context.onError(systemError(verification.error));
             }
           } else if (!this.isCancelled(verification)) {
-            Logger.error(
-              `Unknown Verification State:\nStatus:${verification.status}\nOutcome:${verification.outcome}`
-            ).log();
+            if (verification?.status) {
+              Logger.error(
+                `Unknown Verification State:\nStatus:${verification?.status}\nOutcome:${verification?.outcome}`
+              ).log();
+            } else {
+              Logger.error(
+                `Error Retrieving Verification:`,
+                verification
+              ).log();
+            }
           }
 
           isFirstIteration = false;

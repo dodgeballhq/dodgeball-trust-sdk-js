@@ -117,8 +117,12 @@ export default class Identifier {
       fingerprints: fingerprints,
     });
 
-    // Set the sourceToken cookies / localStorage
-    this.saveSource(newSource);
+    if (newSource != null && newSource.token != null) {
+      // Set the sourceToken cookies / localStorage
+      this.saveSource(newSource);
+    } else {
+      Logger.error("Error Generating Source Token.", newSource).log();
+    }
 
     return newSource;
   }
@@ -140,13 +144,17 @@ export default class Identifier {
     }
 
     if (Object.keys(metadata).length > 0) {
-      await attachSourceTokenMetadata({
+      const result = await attachSourceTokenMetadata({
         url: this.apiUrl as string,
         token: this.publicKey,
         version: this.apiVersion,
         sourceToken: sourceToken,
         metadata,
       });
+
+      if (!result || !result.success) {
+        Logger.error("Error Saving Source Token Metadata.", result).log();
+      }
     }
 
     return metadata;

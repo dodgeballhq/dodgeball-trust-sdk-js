@@ -38,6 +38,12 @@ interface IAttachSourceTokenMetadata {
   metadata: { [key: string]: any };
 }
 
+const MAX_REQUEST_RETRIES = 4;
+
+export const sleep = (ms: number) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
 // function to wrap axios requests
 export const makeRequest = async ({
   url,
@@ -45,19 +51,33 @@ export const makeRequest = async ({
   headers,
   data,
 }: IRequestParams) => {
-  try {
-    const response = await axios({
-      method,
-      url,
-      headers,
-      data,
-      timeout: 0,
-    });
-    return response.data;
-  } catch (error) {
-    Logger.error("Request error: ", error).log();
-    return error;
+  let lastError;
+  let numAttempts = 0;
+
+  while (numAttempts < MAX_REQUEST_RETRIES) {
+    try {
+      const response = await axios({
+        method,
+        url,
+        headers,
+        data,
+        timeout: 0,
+      });
+
+      return response.data;
+    } catch (error) {
+      Logger.error("Request error: ", error).log();
+      lastError = error;
+    }
+    numAttempts += 1;
+    if (numAttempts < MAX_REQUEST_RETRIES) {
+      await sleep(
+        Math.min(5000, Math.max(100, 10 * Math.pow(10, numAttempts)))
+      );
+    }
   }
+
+  return lastError;
 };
 
 // function to construct an apiUrl with version appended to the end
