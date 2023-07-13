@@ -506,6 +506,7 @@ export class Dodgeball {
               }
             }
           } else if (this.isDenied(verification)) {
+            this.clearScreen();
             if (context.onDenied) {
               await context.onDenied(verification);
             }
@@ -524,6 +525,7 @@ export class Dodgeball {
               await context.onUndecided(verification);
             }
           } else if (this.hasError(verification)) {
+            this.clearScreen();
             if (context.onError) {
               await context.onError(systemError(verification.error));
             }
