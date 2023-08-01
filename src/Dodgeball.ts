@@ -23,13 +23,17 @@ import {
 import {
   DEFAULT_CONFIG,
   DEFAULT_VERIFICATION_OPTIONS,
+  DISABLED_SESSION_ID,
   DISABLED_SOURCE_TOKEN,
+  DODGEBALL_SESSION_KEY,
+  DodgeballSessionMessageType,
   MIN_TOKEN_REFRESH_INTERVAL_MS,
 } from "./constants";
 
 import { Logger, LogLevel, Severity } from "./logger";
 
 import {
+  constructApiUrl,
   getInitializationConfig,
   queryVerification,
   setVerificationResponse,
@@ -41,6 +45,7 @@ import IntegrationLoader from "./IntegrationLoader";
 
 import cloneDeep from "lodash.clonedeep";
 import { v4 as uuidv4 } from "uuid";
+import Cookies from "js-cookie";
 
 export class Dodgeball {
   private publicKey: string = "";
@@ -56,6 +61,10 @@ export class Dodgeball {
   private sourceToken: string = "";
   private sourceTokenExpiry: number = 0;
   private refreshSourceTokenHandle: any = null;
+  private sessionHelperIsLoaded: boolean = false;
+  private sessionHelperIframe: HTMLIFrameElement | null = null;
+  private onSessionHelper: Function[] = [];
+  private useSessionFallback: boolean = false;
 
   constructor(publicKey: string, config?: IDodgeballConfig) {
     if (publicKey == null || publicKey?.length === 0) {
@@ -200,6 +209,116 @@ export class Dodgeball {
             initConfig
           ).log();
         }
+
+        // Attach session helper iframe
+        if (
+          typeof document !== "undefined" &&
+          this.config.enableCrossDomainSession
+        ) {
+          // Get the user-agent string
+          const userAgentString = navigator.userAgent;
+          const isChromeAgent = userAgentString.indexOf("Chrome") > -1;
+          let isSafariAgent = userAgentString.indexOf("Safari") > -1;
+
+          // Discard Safari since it also matches Chrome
+          if (isChromeAgent && isSafariAgent) {
+            isSafariAgent = false;
+          }
+
+          const useCookies = isSafariAgent; // Safari does not support localStorage in iframes
+
+          if (useCookies) {
+            this.sessionHelperIsLoaded = true;
+            this.useSessionFallback = true;
+
+            if (this.onSessionHelper.length > 0) {
+              this.onSessionHelper.forEach((callback) => {
+                callback();
+              });
+
+              this.onSessionHelper = [];
+            }
+          } else {
+            let sessionHelperIframe =
+              document.getElementById("_db-sessionUtil");
+
+            if (!sessionHelperIframe) {
+              const apiUrl = constructApiUrl(
+                this.config.apiUrl as string,
+                this.config.apiVersion
+              );
+
+              sessionHelperIframe = document.createElement("iframe");
+              sessionHelperIframe.setAttribute("id", "_db-sessionUtil");
+              sessionHelperIframe.setAttribute(
+                "src",
+                `${apiUrl}sessionUtil?publicKey=${this.publicKey}`
+              );
+              sessionHelperIframe.setAttribute("style", "display: none;");
+              sessionHelperIframe.setAttribute(
+                "sandbox",
+                "allow-scripts allow-same-origin"
+              );
+
+              sessionHelperIframe.addEventListener("load", () => {
+                this.sessionHelperIsLoaded = true;
+
+                setTimeout(() => {
+                  if (this.onSessionHelper.length > 0) {
+                    this.onSessionHelper.forEach((callback) => {
+                      callback();
+                    });
+
+                    this.onSessionHelper = [];
+                  }
+                }, 0);
+              });
+
+              sessionHelperIframe.addEventListener("error", () => {
+                Logger.error(
+                  "Error Loading Session Helper. Using fallback"
+                ).log();
+                this.sessionHelperIsLoaded = true;
+                this.useSessionFallback = true;
+
+                setTimeout(() => {
+                  if (this.onSessionHelper.length > 0) {
+                    this.onSessionHelper.forEach((callback) => {
+                      callback();
+                    });
+
+                    this.onSessionHelper = [];
+                  }
+                }, 0);
+              });
+
+              document.body.appendChild(sessionHelperIframe);
+            } else {
+              this.sessionHelperIsLoaded = true;
+
+              if (this.onSessionHelper.length > 0) {
+                this.onSessionHelper.forEach((callback) => {
+                  callback();
+                });
+
+                this.onSessionHelper = [];
+              }
+            }
+
+            this.sessionHelperIframe = sessionHelperIframe as HTMLIFrameElement;
+          }
+        } else {
+          this.sessionHelperIsLoaded = true;
+          this.useSessionFallback = true;
+
+          if (this.onSessionHelper.length > 0) {
+            this.onSessionHelper.forEach((callback) => {
+              callback();
+            });
+
+            this.onSessionHelper = [];
+          }
+        }
       }, 0);
     }
   }
@@ -223,6 +342,76 @@ export class Dodgeball {
     this.refreshSourceTokenHandle = setTimeout(async () => {
       await this.generateSourceToken();
     }, nextRefresh);
+  }
+
+  private sendSessionUtilMessage(message: any) {
+    const sendMessage = () => {
+      if (this.useSessionFallback) {
+        switch (message.type) {
+          case DodgeballSessionMessageType.GET_SESSION:
+            let sessionId = null;
+            if (!this.config.disableCookies) {
+              const sessionCookie = Cookies.get(DODGEBALL_SESSION_KEY);
+              if (sessionCookie) {
+                try {
+                  const parsedSessionCookie = JSON.parse(sessionCookie);
+                  if (parsedSessionCookie.expiry > Date.now()) {
+                    sessionId = parsedSessionCookie.sessionId;
+                  } else {
+                    Cookies.remove(DODGEBALL_SESSION_KEY);
+                  }
+                } catch (e) {
+                  Cookies.remove(DODGEBALL_SESSION_KEY);
+                }
+              }
+            } else {
+              sessionId = window.localStorage.getItem(message.key);
+            }
+
+            window.postMessage(
+              {
+                type: "_DB_GET_RESPONSE",
+                key: message.key,
+                value: sessionId,
+              },
+              window.origin
+            );
+            break;
+          case DodgeballSessionMessageType.SET_SESSION:
+            if (!this.config.disableCookies) {
+              const hostnameParts = window.location.hostname
+                .split(".")
+                .slice(-2);
+
+              Cookies.set(DODGEBALL_SESSION_KEY, message.value, {
+                domain: hostnameParts.join("."),
+                expires: 365,
+              });
+            } else {
+              window.localStorage.setItem(message.key, message.value);
+            }
+            break;
+          case DodgeballSessionMessageType.CLEAR_SESSION:
+            if (!this.config.disableCookies) {
+              Cookies.remove(DODGEBALL_SESSION_KEY);
+            } else {
+              window.localStorage.removeItem(message.key);
+            }
+            break;
+        }
+      } else {
+        this.sessionHelperIframe?.contentWindow?.postMessage(
+          message,
+          this.config.apiUrl as string
+        );
+      }
+    };
+
+    if (!this.sessionHelperIsLoaded) {
+      this.onSessionHelper.push(sendMessage);
+    } else {
+      sendMessage();
+    }
   }
 
   private async generateSourceToken() {
@@ -726,6 +915,78 @@ export class Dodgeball {
       verification?.status === VerificationStatus.FAILED &&
       verification?.outcome === VerificationOutcome.ERROR
     );
+  }
+
+  // This function may be called using async/await syntax or using a callback
+  public async getSession(onSession?: Function): Promise<string | null> {
+    try {
+      return new Promise(async (resolve) => {
+        if (this.config.isEnabled) {
+          if (typeof window !== "undefined") {
+            window.addEventListener("message", (event) => {
+              if (
+                event.data?.type ===
+                  DodgeballSessionMessageType.GET_SESSION_RESPONSE &&
+                event.data?.key === DODGEBALL_SESSION_KEY
+              ) {
+                let sessionId = null;
+                let expiry = 0;
+                try {
+                  const sessionData = JSON.parse(event.data.value);
+                  sessionId = sessionData.sessionId;
+                  expiry = sessionData.expiry;
+                } catch (e) {
+                  sessionId = event.data.value;
+                }
+
+                if (expiry) {
+                  const now = Date.now();
+                  if (expiry < now) {
+                    this.clearSession();
+                    sessionId = null;
+                  }
+                }
+
+                if (onSession) {
+                  onSession(sessionId);
+                }
+                resolve(sessionId);
+              }
+            });
+
+            this.sendSessionUtilMessage({
+              type: DodgeballSessionMessageType.GET_SESSION,
+              key: DODGEBALL_SESSION_KEY,
+            });
+          }
+        } else {
+          if (onSession) {
+            onSession(DISABLED_SESSION_ID);
+          }
+          resolve(DISABLED_SESSION_ID);
+        }
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  public setSession(sessionId: string, expiry?: number): void {
+    this.sendSessionUtilMessage({
+      type: DodgeballSessionMessageType.SET_SESSION,
+      key: DODGEBALL_SESSION_KEY,
+      value: JSON.stringify({
+        sessionId: sessionId,
+        expiry: expiry ?? 0,
+      }),
+    });
+  }
+
+  public clearSession(): void {
+    this.sendSessionUtilMessage({
+      type: DodgeballSessionMessageType.CLEAR_SESSION,
+      key: DODGEBALL_SESSION_KEY,
+    });
   }
 }
 

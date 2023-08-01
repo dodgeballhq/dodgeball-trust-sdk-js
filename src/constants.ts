@@ -13,6 +13,7 @@ export const DEFAULT_CONFIG: IDodgeballConfig = {
   apiUrl: "https://api.dodgeballhq.com/",
   apiVersion: DodgeballApiVersion.v1,
   isEnabled: true,
+  enableCrossDomainSession: false,
 };
 
 export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {
@@ -23,3 +24,13 @@ export const DEFAULT_VERIFICATION_OPTIONS: IVerificationInvocationOptions = {
 };
 
 export const DISABLED_SOURCE_TOKEN = "DISABLED_SOURCE_TOKEN";
+export const DISABLED_SESSION_ID = "DISABLED_SESSION_ID";
+
+export enum DodgeballSessionMessageType {
+  GET_SESSION = "_DB_GET",
+  GET_SESSION_RESPONSE = "_DB_GET_RESPONSE",
+  SET_SESSION = "_DB_SET",
+  CLEAR_SESSION = "_DB_CLEAR",
+}
+
+export const DODGEBALL_SESSION_KEY = "_db_s";

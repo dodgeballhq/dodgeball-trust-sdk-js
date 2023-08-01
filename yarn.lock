@@ -3175,10 +3175,10 @@
     "import-local" "^3.0.2"
     "jest-cli" "^27.4.3"
 
-"js-cookie@^3.0.1":
-  "integrity" "sha512-+0rgsUXZu4ncpPxRL+lNEptWMOWl9etvPHc/koSRp6MPwpRYAhmk0dUG00J4bxVV3r9uUzfo24wW0knS07SKSw=="
-  "resolved" "https://registry.npmjs.org/js-cookie/-/js-cookie-3.0.1.tgz"
-  "version" "3.0.1"
+"js-cookie@^3.0.5":
+  "integrity" "sha512-cEiJEAEoIbWfCZYKWhVwFuvPX1gETRYPw6LlaTKoxD3s2AkXzkCjnp6h0V77ozyqj0jakteJ4YqDJT830+lVGw=="
+  "resolved" "https://registry.npmjs.org/js-cookie/-/js-cookie-3.0.5.tgz"
+  "version" "3.0.5"
 
 "js-tokens@^4.0.0":
   "integrity" "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="
