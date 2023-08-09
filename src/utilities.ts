@@ -30,6 +30,13 @@ interface IGetSourceTokenParams {
   fingerprints: IFingerprint[];
 }
 
+interface IExpireSourceTokenParams {
+  url: string;
+  version: string;
+  token: string;
+  sourceToken: string;
+}
+
 interface IAttachSourceTokenMetadata {
   url: string;
   version: string;
@@ -142,6 +149,28 @@ export const sendGetSourceToken = async ({
     data: {
       fingerprints,
     },
+  });
+
+  return {
+    token: response.token as string,
+    expiry: response.expiry as number, // ms since UNIX epoch
+  };
+};
+
+export const sendExpireSourceToken = async ({
+  url,
+  token,
+  version,
+  sourceToken,
+}: IExpireSourceTokenParams) => {
+  const headers = constructApiHeaders(token, sourceToken);
+  const apiUrl = constructApiUrl(url, version);
+
+  const response = await makeRequest({
+    url: `${apiUrl}sourceToken/expire`,
+    method: "POST",
+    headers,
+    data: {},
   });
 
   return {

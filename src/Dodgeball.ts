@@ -862,6 +862,32 @@ export class Dodgeball {
     }
   }
 
+  // This function may be called using async/await syntax or using a callback
+  public async refreshSourceToken(onSource?: Function): Promise<string> {
+    try {
+      return new Promise(async (resolve) => {
+        if (this.config.isEnabled) {
+          // Expire this source token
+          await this.identifier.expireSourceToken();
+
+          const newSourceToken = await this.getSourceToken();
+
+          if (onSource) {
+            onSource(newSourceToken);
+          }
+          resolve(newSourceToken);
+        } else {
+          if (onSource) {
+            onSource(DISABLED_SOURCE_TOKEN);
+          }
+          resolve(DISABLED_SOURCE_TOKEN);
+        }
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
   public handleVerification(
     verification: IVerification,
     context: IVerificationContext,
