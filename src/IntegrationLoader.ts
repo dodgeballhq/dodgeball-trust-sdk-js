@@ -21,7 +21,6 @@ export default class IntegrationLoader {
 
   constructor({ requireSrc, parentContext }: IIntegrationLoaderProps) {
     this.parentContext = parentContext;
-    console.log("I am alive");
 
     (async () => {
       const requireScript = document.createElement("script");
@@ -29,34 +28,31 @@ export default class IntegrationLoader {
       const sourceText = await (await fetch(sourceToUse as string)).text();
       const customRequire = `
         var dodgeballRequire = (function () {
-          //Define a require object here that has any
-          //default configuration you want for RequireJS. If
-          //you do not have any config options you want to set,
-          //just use an simple object literal, {}. You may need
-          //to at least set baseUrl.
           var require = {};
-
-          //INSERT require.js CONTENTS HERE
           ${sourceText}
           return {require, define, requirejs};
         }());
       `;
       requireScript.innerHTML = customRequire;
-      console.log(requireScript.innerHTML);
-      setTimeout(async () => {
-        console.log('something happened');
-        console.log((window as any).dodgeballRequire);
-        if ((window as any).dodgeballRequire) {
-          console.log("require loaded");
-          this.isRequireLoaded = true;
-          for (const callback of this.onRequireLoaded) {
-            await callback();
+
+      let tries = 0;
+      const maxTries = 1000;
+
+      const registerCheck = () => {
+        setTimeout(async () => {
+          tries += 1;
+          if ((window as any).dodgeballRequire) {
+            this.isRequireLoaded = true;
+            for (const callback of this.onRequireLoaded) {
+              await callback();
+            }
+          } else if (tries < maxTries) {
+            registerCheck();
           }
-        }
-      }, 1000);
-      requireScript.onload = async () => {
-        
+        }, 1);
       };
+
+      registerCheck();
       document.body.appendChild(requireScript);
     })();
   }
@@ -129,7 +125,7 @@ export default class IntegrationLoader {
             const integrationScript = document.createElement("script");
 
             const onIntegrationContentReady = async () => {
-              (window as any).dodgeballRequire(
+              (window as any).dodgeballRequire.require(
                 [`integrations/${libConfig.name}`],
                 () => {
                   let integrationClass: Integration;
@@ -181,8 +177,9 @@ export default class IntegrationLoader {
               integrationScript.src = libConfig.content.url;
               integrationScript.onload = onIntegrationContentReady;
             } else {
-              console.log("ready to set up integration script via require");
-              integrationScript.innerHTML = `(function ({require, define, requirejs}) {${libConfig.content.text as string}}(dodgeballRequire));`;
+              integrationScript.innerHTML = `(function ({require, define, requirejs}) {${
+                libConfig.content.text as string
+              }}(dodgeballRequire));`;
               setTimeout(onIntegrationContentReady, 2);
             }
             document.body.appendChild(integrationScript);
