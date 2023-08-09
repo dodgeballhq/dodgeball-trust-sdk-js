@@ -4,6 +4,7 @@ import {
   sendGetSourceToken,
   attachSourceTokenMetadata,
   getMd5,
+  sendExpireSourceToken,
 } from "./utilities";
 import { Logger } from "./logger";
 
@@ -125,6 +126,25 @@ export default class Identifier {
     }
 
     return newSource;
+  }
+
+  public async expireSourceToken() {
+    const source = this.getSource();
+
+    if (source) {
+      const result = await sendExpireSourceToken({
+        url: this.apiUrl as string,
+        token: this.publicKey,
+        version: this.apiVersion,
+        sourceToken: source.token,
+      });
+
+      if (!result || !result.token) {
+        Logger.error("Error Expiring Source Token.", result).log();
+      }
+
+      this.saveSource(null);
+    }
   }
 
   public async saveSourceTokenMetadata(
