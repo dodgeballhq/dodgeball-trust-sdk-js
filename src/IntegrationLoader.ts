@@ -24,13 +24,35 @@ export default class IntegrationLoader {
 
     (async () => {
       const requireScript = document.createElement("script");
-      requireScript.src = requireSrc ? requireSrc : DEFAULT_REQUIRE_SRC;
-      requireScript.onload = async () => {
-        this.isRequireLoaded = true;
-        for (const callback of this.onRequireLoaded) {
-          await callback();
-        }
+      const sourceToUse = requireSrc ? requireSrc : DEFAULT_REQUIRE_SRC;
+      const sourceText = await (await fetch(sourceToUse as string)).text();
+      const customRequire = `
+        var dodgeballRequire = (function () {
+          var require = {};
+          ${sourceText}
+          return {require, define, requirejs};
+        }());
+      `;
+      requireScript.innerHTML = customRequire;
+
+      let tries = 0;
+      const maxTries = 1000;
+
+      const registerCheck = () => {
+        setTimeout(async () => {
+          tries += 1;
+          if ((window as any).dodgeballRequire) {
+            this.isRequireLoaded = true;
+            for (const callback of this.onRequireLoaded) {
+              await callback();
+            }
+          } else if (tries < maxTries) {
+            registerCheck();
+          }
+        }, 1);
       };
+
+      registerCheck();
       document.body.appendChild(requireScript);
     })();
   }
@@ -103,7 +125,7 @@ export default class IntegrationLoader {
             const integrationScript = document.createElement("script");
 
             const onIntegrationContentReady = async () => {
-              (window as any).require(
+              (window as any).dodgeballRequire.require(
                 [`integrations/${libConfig.name}`],
                 () => {
                   let integrationClass: Integration;
@@ -155,7 +177,9 @@ export default class IntegrationLoader {
               integrationScript.src = libConfig.content.url;
               integrationScript.onload = onIntegrationContentReady;
             } else {
-              integrationScript.innerHTML = libConfig.content.text as string;
+              integrationScript.innerHTML = `(function ({require, define, requirejs}) {${
+                libConfig.content.text as string
+              }}(dodgeballRequire));`;
               setTimeout(onIntegrationContentReady, 2);
             }
             document.body.appendChild(integrationScript);
