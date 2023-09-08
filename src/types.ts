@@ -184,6 +184,7 @@ export interface IDodgeballConfig {
   userId?: string; // If you have the userId available at the time of construction, you can pass it in here. Note that sessionId is required if you pass in userId.
   isEnabled?: boolean; // Defaults to true. Set to false to during local development / testing to skip making requests.
   enableCrossDomainSession?: boolean; // Defaults to false. Set to true to enable cross-domain session sharing.
+  integrationTimeout?: number; // Defaults to 2000 (2 seconds). This is the timeout for each integration to complete.
 }
 
 // This represents the properties on the parent context passed to each integration

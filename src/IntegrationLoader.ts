@@ -110,17 +110,17 @@ export default class IntegrationLoader {
         try {
           // Dynamically load the integration content
           if (libConfig.content != null) {
-            const timeoutHandle = setTimeout(
-              () => {
-                Logger.error(
-                  `Timeout loading integration. ${libConfig.name} took longer than ${MAX_INTEGRATION_LOAD_TIMEOUT}ms to load. Skipping.`
-                ).log();
-                resolve(null);
-              },
-              libConfig.loadTimeout
-                ? libConfig.loadTimeout
-                : MAX_INTEGRATION_LOAD_TIMEOUT
-            );
+            const integrationTimeoutValue = libConfig.loadTimeout
+              ? libConfig.loadTimeout
+              : this.parentContext?.config?.integrationTimeout
+              ? this.parentContext.config.integrationTimeout
+              : MAX_INTEGRATION_LOAD_TIMEOUT;
+            const timeoutHandle = setTimeout(() => {
+              Logger.error(
+                `Timeout loading integration. ${libConfig.name} took longer than ${integrationTimeoutValue}ms to load. Skipping.`
+              ).log();
+              resolve(null);
+            }, integrationTimeoutValue);
 
             const integrationScript = document.createElement("script");
 
