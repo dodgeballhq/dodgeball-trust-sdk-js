@@ -119,6 +119,8 @@ export default class IntegrationLoader {
               },
               libConfig.loadTimeout
                 ? libConfig.loadTimeout
+                : this.parentContext?.config?.integrationTimeout
+                ? this.parentContext.config.integrationTimeout
                 : MAX_INTEGRATION_LOAD_TIMEOUT
             );
 
