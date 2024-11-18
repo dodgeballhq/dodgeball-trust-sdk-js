@@ -17,7 +17,7 @@ import {
   VerificationOutcome,
   VerificationStatus,
   systemError,
-  cancelError,
+  cancelError, DodgeballClientError, DodgeballClientObjectsNull,
 } from "./types";
 
 import {
@@ -65,17 +65,30 @@ export class Dodgeball {
   private sessionHelperIframe: HTMLIFrameElement | null = null;
   private onSessionHelper: Function[] = [];
   private useSessionFallback: boolean = false;
+  private noThrow: boolean = false;
 
   constructor(publicKey: string, config?: IDodgeballConfig) {
+    if(config?.noThrow){
+      this.noThrow = true;
+    }
+
+    this.config = Object.assign(
+        cloneDeep(DEFAULT_CONFIG),
+        cloneDeep(config || {})
+    );
+
+    this.identifier = new Identifier({
+      cookiesEnabled: !this.config.disableCookies,
+      apiUrl: this.config.apiUrl as string,
+      apiVersion: this.config.apiVersion,
+      publicKey: this.publicKey,
+    });
+
+    try{
     if (publicKey == null || publicKey?.length === 0) {
       throw new DodgeballMissingConfigError("publicApiKey", publicKey);
     }
     this.publicKey = publicKey;
-
-    this.config = Object.assign(
-      cloneDeep(DEFAULT_CONFIG),
-      cloneDeep(config || {})
-    );
 
     if (
       Object.keys(DodgeballApiVersion).indexOf(
@@ -100,13 +113,6 @@ export class Dodgeball {
     }
 
     Logger.filterLevel = Severity[logLevel];
-
-    this.identifier = new Identifier({
-      cookiesEnabled: !this.config.disableCookies,
-      apiUrl: this.config.apiUrl as string,
-      apiVersion: this.config.apiVersion,
-      publicKey: this.publicKey,
-    });
     Logger.trace("Dodgeball constructor called").log();
 
     if (this.config.isEnabled) {
@@ -132,6 +138,7 @@ export class Dodgeball {
                   resolve({
                     requestId: uuidv4(),
                     libs: [],
+                    success: true
                   });
                 }
               );
@@ -148,7 +155,8 @@ export class Dodgeball {
           });
         }
 
-        if (initConfig?.hasOwnProperty("libs")) {
+
+        if (initConfig && initConfig.success && initConfig?.hasOwnProperty("libs")) {
           // Now that we have the initConfig, parse it and load the integrations
           this.integrationLoader = new IntegrationLoader({
             requireSrc: initConfig.requireSrc,
@@ -204,10 +212,34 @@ export class Dodgeball {
             });
           }
         } else {
-          Logger.error(
-            "Error Loading Initialization Configuration.",
-            initConfig
-          ).log();
+          if(initConfig && !initConfig.success){
+            if(initConfig.errors){
+              try {
+                const errors = initConfig.errors.map((item) => {
+                  if (item && item.message) {
+                    return item.message
+                  } else {
+                    return ""
+                  }
+                }).filter((item) => {
+                  return item && item != "";
+                }).join(", ") ?? "";
+                Logger.error(
+                    `Could not look up config scripts due to errors: ${errors}`,
+                ).log();
+              } catch (error){
+                Logger.error("Could not look up initialization script", error).log();
+              }
+            } else{
+              Logger.error("Could not look up client configuration script").log();
+            }
+          }
+          else {
+            Logger.error(
+                "Error Loading Initialization Configuration.",
+                initConfig
+            ).log();
+          }
         }
 
         // Attach session helper iframe
@@ -320,6 +352,18 @@ export class Dodgeball {
           }
         }
       }, 0);
+    }
+  } catch (error){
+      if(error instanceof DodgeballClientError){
+        const dodgeballError = error as DodgeballClientError;
+        Logger.error(dodgeballError.formattedString()).log();
+      } else{
+        Logger.error("An unknown error has occurred", error).log();
+      }
+
+      if(!this.noThrow){
+        throw error;
+      }
     }
   }
 
@@ -1020,17 +1064,30 @@ export class Dodgeball {
 export function useDodgeball(
   publicKey?: string,
   config?: IDodgeballConfig
-): Dodgeball {
-  if (typeof window !== "undefined") {
-    if (!window.hasOwnProperty("dodgeball")) {
-      const dodgeball = new Dodgeball(publicKey as string, config);
-      window.dodgeball = dodgeball;
-      return dodgeball;
+): Dodgeball | null {
+  try {
+    if (typeof window !== "undefined") {
+      if (!window.hasOwnProperty("dodgeball")) {
+        const dodgeball = new Dodgeball(publicKey as string, config);
+        window.dodgeball = dodgeball;
+        return dodgeball;
+      } else {
+        return window.dodgeball;
+      }
     } else {
-      return window.dodgeball;
+      Logger.info(
+          "The Client Window is null: are you running the client js on a server"
+      ).log();
+      return new Dodgeball(publicKey as string, config);
     }
+  } catch (error) {
+    Logger.error("An error has been encountered initializing Dodgeball", error).log();
+    if (config && !config.noThrow) {
+      throw error;
+    }
+
+    return null;
   }
-  return new Dodgeball(publicKey as string, config);
 }
 
 declare global {

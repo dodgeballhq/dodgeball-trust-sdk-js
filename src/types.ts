@@ -89,7 +89,13 @@ export interface IStepResponse {
   data?: any;
 }
 
+export interface IErrorData{
+  message: string;
+}
+
 export interface IInitConfig {
+  success: boolean;
+  errors?: IErrorData[];
   requestId: string;
   libs: ILibConfig[];
   requireSrc?: string;
@@ -179,6 +185,7 @@ export interface IDodgeballConfig {
   apiVersion: DodgeballApiVersion;
   apiUrl?: string; // For completely isolated (self-hosted) distributions, you will need to supply a URL to the API.
   logLevel?: LogLevel;
+  noThrow?: boolean;  // Set to true in case exceptions should be logged but not thrown.
   disableCookies?: boolean;
   sessionId?: string; // If you have the sessionId available at the time of construction, you can pass it in here.
   userId?: string; // If you have the userId available at the time of construction, you can pass it in here. Note that sessionId is required if you pass in userId.
@@ -206,31 +213,70 @@ export interface IVerificationInvocationOptions
 }
 
 // Errors
-export class DodgeballMissingConfigError extends Error {
+export enum DodgeballErrorCategory{
+  UNKNOWN = "UNKNOWN",
+  CLIENT_OBJECTS_NULL = "CLIENT_OBJECTS_NULL",
+  MISSING_CONFIG = "MISSING_CONFIG",
+  INVALID_CONFIG = "INVALID_CONFIG",
+  MISSING_PARAMETER = "MISSING_PARAMETER"
+}
+
+
+export class DodgeballClientError extends Error{
+  category: DodgeballErrorCategory = DodgeballErrorCategory.UNKNOWN;
+  constructor(
+      category: DodgeballErrorCategory,
+      message: string,
+      prototype: any
+  ){
+    super(message);
+    this.category = category;
+    Object.setPrototypeOf(this, prototype);
+  }
+
+  formattedString(): string{
+    return `
+      Error Category: ${this.category}
+      Message: ${this.message ?? ""}
+    `;
+  }
+}
+
+export class DodgeballMissingConfigError extends DodgeballClientError {
   constructor(configName: string, value: any) {
     super(
-      `Dodgeball SDK Error\nMissing configuration: ${configName}\nProvided Value: ${value}`
-    );
-    Object.setPrototypeOf(this, new.target.prototype);
+        DodgeballErrorCategory.MISSING_CONFIG,
+      `Dodgeball SDK Error\nMissing configuration: ${configName}\nProvided Value: ${value}`,
+    new.target.prototype);
   }
 }
 
-export class DodgeballInvalidConfigError extends Error {
+export class DodgeballInvalidConfigError extends DodgeballClientError {
   constructor(configName: string, value: any, allowedValues: any[]) {
     super(
+        DodgeballErrorCategory.INVALID_CONFIG,
       `Dodgeball SDK Error\nInvalid configuration: ${configName}\nProvided value: ${value}\nAllowed values: ${allowedValues.join(
-        ", "
-      )}`
-    );
-    Object.setPrototypeOf(this, new.target.prototype);
+          ",")}`,
+        new.target.prototype);
   }
 }
 
-export class DodgeballMissingParameterError extends Error {
+export class DodgeballMissingParameterError extends DodgeballClientError {
   constructor(parameter: string, value: any) {
     super(
-      `Dodgeball SDK Error\nMissing parameter: ${parameter}\nProvided value: ${value}`
-    );
-    Object.setPrototypeOf(this, new.target.prototype);
+        DodgeballErrorCategory.MISSING_PARAMETER,
+        `Dodgeball SDK Error\nMissing parameter: ${parameter}\nProvided value: ${value}`,
+        new.target.prototype);
+  }
+}
+
+export class DodgeballClientObjectsNull extends DodgeballClientError {
+  constructor(clientObjectType: string, executionContext: string) {
+    const message = `In ${executionContext}, an expected client value, ${clientObjectType ?? ""} is null: 
+    Are you executing the Javascript Client on the server`;
+    super(
+        DodgeballErrorCategory.CLIENT_OBJECTS_NULL,
+        message,
+        new.target.prototype);
   }
 }

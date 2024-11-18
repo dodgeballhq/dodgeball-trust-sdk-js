@@ -1,4 +1,5 @@
 import {
+  DodgeballClientObjectsNull,
   IDodgeballParentContext,
   ILibConfig,
   IntegrationPurpose,
@@ -23,37 +24,49 @@ export default class IntegrationLoader {
     this.parentContext = parentContext;
 
     (async () => {
-      const requireScript = document.createElement("script");
-      const sourceToUse = requireSrc ? requireSrc : DEFAULT_REQUIRE_SRC;
-      const sourceText = await (await fetch(sourceToUse as string)).text();
-      const customRequire = `
+      try {
+        if(!document){
+          Logger.error(
+              "Client Document is null: is the Javascript Client execution on a server"
+          ).log();
+
+          throw new DodgeballClientObjectsNull("document", "IntegrationLoader::constructor");
+        }
+
+        const requireScript = document.createElement("script");
+        const sourceToUse = requireSrc ? requireSrc : DEFAULT_REQUIRE_SRC;
+        const sourceText = await (await fetch(sourceToUse as string)).text();
+        const customRequire = `
         var dodgeballRequire = (function () {
           var require = {};
           ${sourceText}
           return {require, define, requirejs};
         }());
       `;
-      requireScript.innerHTML = customRequire;
+        requireScript.innerHTML = customRequire;
 
-      let tries = 0;
-      const maxTries = 1000;
+        let tries = 0;
+        const maxTries = 1000;
 
-      const registerCheck = () => {
-        setTimeout(async () => {
-          tries += 1;
-          if ((window as any).dodgeballRequire) {
-            this.isRequireLoaded = true;
-            for (const callback of this.onRequireLoaded) {
-              await callback();
+        const registerCheck = () => {
+          setTimeout(async () => {
+            tries += 1;
+            if ((window as any).dodgeballRequire) {
+              this.isRequireLoaded = true;
+              for (const callback of this.onRequireLoaded) {
+                await callback();
+              }
+            } else if (tries < maxTries) {
+              registerCheck();
             }
-          } else if (tries < maxTries) {
-            registerCheck();
-          }
-        }, 1);
-      };
+          }, 1);
+        };
 
-      registerCheck();
-      document.body.appendChild(requireScript);
+        registerCheck();
+        document.body.appendChild(requireScript);
+      } catch (error){
+        Logger.error("Could not load Dodgeball Integrations", error).log();
+      }
     })();
   }
 
@@ -62,24 +75,38 @@ export default class IntegrationLoader {
     requestId: string
   ): Promise<Integration[]> {
     return new Promise((resolve) => {
-      let integrationsMap: { [key: string]: Integration } = {};
-      let resolvedCount = 0;
+      try {
+        let integrationsMap: { [key: string]: Integration } = {};
+        let resolvedCount = 0;
 
-      const onIntegrationLoaded = (integration: Integration | null) => {
-        resolvedCount += 1;
-        if (integration !== null) {
-          integrationsMap[integration.name] = integration;
-        }
+        const onIntegrationLoaded = (integration: Integration | null) => {
+          resolvedCount += 1;
+          if (integration !== null) {
+            integrationsMap[integration.name] = integration;
+          }
 
-        if (libs.length === resolvedCount) {
-          // All of the integrations have been loaded or skipped
-          resolve(Object.values(integrationsMap));
-        }
-      };
+          if (libs.length === resolvedCount) {
+            // All of the integrations have been loaded or skipped
+            resolve(Object.values(integrationsMap));
+          }
+        };
 
-      libs.forEach((libConfig) => {
-        this.loadIntegration(libConfig, requestId).then(onIntegrationLoaded);
-      });
+        libs.forEach((libConfig) => {
+          try {
+            this.loadIntegration(libConfig, requestId).then(onIntegrationLoaded);
+          } catch (error){
+            Logger.error(
+                `Could not load requested integration: ${libConfig?.name ?? ""}`,
+                error
+            ).log();
+          }
+        });
+      } catch(error){
+        Logger.error(
+            "Could not load integrations",
+            error
+        ).log();
+      }
     });
   }
 

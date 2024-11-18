@@ -113,7 +113,7 @@ export class Logger {
       }
 
       if (logEvent.severity === Severity.ERROR) {
-        console.log(logResults, logEvent.error);
+        console.log(logResults, logEvent.error ?? "");
       } else {
         console.log(logResults);
       }
