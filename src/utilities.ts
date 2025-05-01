@@ -1,13 +1,13 @@
+import axios, { Method } from "axios";
+import { Logger } from "./logger";
+import { Md5 } from "./md5";
 import {
   IDodgeballVerifyResponse,
   IFingerprint,
   IInitConfig,
-  IVerification,
   IStepResponse,
+  IVerification,
 } from "./types";
-import axios, { Method } from "axios";
-import { Logger } from "./logger";
-import { Md5 } from "./md5";
 
 interface IRequestParams {
   url: string;
@@ -201,12 +201,26 @@ export const attachSourceTokenMetadata = async ({
   return response;
 };
 
+/**
+ * Query a verification by id
+ * @param url - The base url of the Dodgeball API
+ * @param token - The public key of the Dodgeball account
+ * @param version - The version of the Dodgeball API
+ * @param verification - The verification to query
+ * @returns The verification response
+ * @throws If the verification has no id or something goes wrong with the request
+ */
 export const queryVerification = async (
   url: string,
   token: string,
   version: string,
   verification: IVerification
 ): Promise<IDodgeballVerifyResponse> => {
+  const verificationId = verification?.id;
+  if (!verificationId) {
+    throw new Error("Verification has no id");
+  }
+
   const headers = constructApiHeaders(token);
   const apiUrl = constructApiUrl(url, version);
 

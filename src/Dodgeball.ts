@@ -1,4 +1,5 @@
 import {
+  cancelError,
   DodgeballApiVersion,
   DodgeballInvalidConfigError,
   DodgeballMissingConfigError,
@@ -14,10 +15,9 @@ import {
   IVerificationContext,
   IVerificationInvocationOptions,
   IVerificationStep,
+  systemError,
   VerificationOutcome,
   VerificationStatus,
-  systemError,
-  cancelError,
 } from "./types";
 
 import {
@@ -43,9 +43,9 @@ import Identifier from "./Identifier";
 import Integration from "./Integration";
 import IntegrationLoader from "./IntegrationLoader";
 
+import Cookies from "js-cookie";
 import cloneDeep from "lodash.clonedeep";
 import { v4 as uuidv4 } from "uuid";
-import Cookies from "js-cookie";
 
 export class Dodgeball {
   private publicKey: string = "";
@@ -505,7 +505,7 @@ export class Dodgeball {
 
         Logger.info("Handle Verification Step - Loaded integration", {
           integration: integration.name,
-        });
+        }).log();
 
         if (
           integration.purposes.includes(IntegrationPurpose.OBSERVE) &&
@@ -595,6 +595,9 @@ export class Dodgeball {
       Logger.trace("Handle Verification Outcome - Called", {
         verification: verification,
       }).log();
+      if (!verification?.id) {
+        Logger.error("Handle Verification Outcome - Verification has no id").log();
+      }
 
       if (this.config.isEnabled) {
         let isTerminal = false;
@@ -634,6 +637,7 @@ export class Dodgeball {
             }
 
             try {
+              Logger.trace("Handle Verification Outcome - Querying Verification Status").log();
               let response = await queryVerification(
                 this.config.apiUrl as string,
                 this.publicKey,
