@@ -55,13 +55,17 @@ export class LogEntry implements ILogEntry {
     return this;
   }
 
-  public setError(error?: any) {
+  public setError(error?: unknown) {
     this.error = error;
     return this;
   }
 
   public log() {
-    return Logger.log(this);
+    try { 
+        Logger.log(this);
+    } catch (e) {
+        // FAILED TO LOG - DO NOT BREAK EXECUTION OR WRITE TO CONSOLE
+    }
   }
 }
 
@@ -76,28 +80,8 @@ export class Logger {
     return new LogEntry(message, Severity.TRACE).setParameters(parameters);
   }
 
-  public static error(message: string, error?: any) {
+  public static error(message: string, error?: unknown) {
     return new LogEntry(message, Severity.ERROR).setError(error);
-  }
-
-  public static formatError(error: any) {
-    if (!error) {
-      return "";
-    }
-
-    if (error instanceof Error) {
-      let transformed = error as Error;
-      return `
-            message: ${transformed.message}
-            stack: ${transformed.stack}
-            name: ${transformed.name}`;
-    } else {
-      try {
-        return JSON.stringify(error.toString(), null, 2);
-      } catch (e) {
-        return error.toString();
-      }
-    }
   }
 
   public static log(logEvent: ILogEntry) {
@@ -107,10 +91,18 @@ export class Logger {
         Date: ${logEvent.date}
         Message: ${logEvent.message}`;
 
-      if (logEvent.parameters) {
-        logResults = `${logResults}
-          parameters: ${logEvent.parameters}`;
+      let parametersString = "";
+      try {
+        if (logEvent.parameters) {
+          parametersString = `
+            ${JSON.stringify(logEvent.parameters, null, 2)}`;
+        }
+      } catch (e) {
+        parametersString = `Unable to represent parameters as a string`;
       }
+
+      logResults = `${logResults}
+        Parameters: ${parametersString}`;
 
       if (logEvent.severity === Severity.ERROR) {
         console.log(logResults, logEvent.error);

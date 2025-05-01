@@ -1,5 +1,6 @@
 import { Dodgeball, useDodgeball } from "./Dodgeball";
-import { DodgeballApiVersion } from "./types";
+import { LogLevel } from "./logger";
+import { DodgeballApiVersion, IVerification } from "./types";
 
 if (typeof window !== "undefined") {
   if (!window.hasOwnProperty("Dodgeball")) {
@@ -7,4 +8,11 @@ if (typeof window !== "undefined") {
   }
 }
 
-export { Dodgeball, useDodgeball, DodgeballApiVersion };
+export {
+  Dodgeball, DodgeballApiVersion, LogLevel, useDodgeball
+};
+
+  export type {
+    IVerification
+  };
+
