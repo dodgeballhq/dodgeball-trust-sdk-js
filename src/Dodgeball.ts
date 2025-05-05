@@ -873,6 +873,8 @@ export class Dodgeball {
         if (this.config.isEnabled) {
           // Expire this source token
           await this.identifier.expireSourceToken();
+          // Need to set the expiry to 0 so that we can generate a new source token
+          this.sourceTokenExpiry = 0;
 
           const newSourceToken = await this.getSourceToken();
 
